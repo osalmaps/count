@@ -69,6 +69,7 @@ h2{font-size:15px;margin:0 0 3px}
 .row .tmwas{font-size:11px;font-weight:500;color:var(--faint);text-decoration:line-through}
 .row .go{border:1.5px solid var(--line);background:#fff;border-radius:7px;padding:11px 15px;font-size:14px;color:var(--marine);font-weight:600}
 .row .go.again{border-color:#b9cdbf;color:var(--ok);padding:11px 12px}
+.lhint{padding:11px 14px;font-size:12.5px;color:var(--steel);background:#f6f8fa;border-bottom:1px solid var(--line);line-height:1.45}
 .row.done{background:var(--ok-bg)}
 .row.done .q{color:var(--ok)}
 .tick{color:var(--ok);font-size:19px;font-weight:700}
@@ -77,6 +78,7 @@ h2{font-size:15px;margin:0 0 3px}
 .sbar{position:sticky;top:calc(var(--hdr) + var(--tabs));z-index:30;background:var(--ink);color:#fff;
       padding:10px 14px;margin:-14px -14px 14px}
 .sbar .l1{display:flex;align-items:baseline;gap:10px}
+.sbar .bk{background:none;border:0;color:#7fa8d6;font-size:14px;font-weight:600;padding:2px 8px 2px 0;flex:0 0 auto}
 .sbar .nm2{font-size:15px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sbar .ct{font-family:var(--mono);font-size:12.5px;color:#a9bccf;flex:0 0 auto}
 .sbar .prog{margin-top:7px}
@@ -126,8 +128,8 @@ h2{font-size:15px;margin:0 0 3px}
 .big{height:60px;border:0;border-radius:11px;font-weight:700;font-size:17px;padding:0 18px;
      display:flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap}
 .big.grey{background:#e6ebf0;color:var(--ink);flex:0 0 auto;min-width:92px}
-.big.scanb{background:var(--marine);color:#fff;flex:0 0 auto;width:64px;padding:0}
-.big.scanb svg{width:26px;height:26px}
+.big.scanb{background:var(--marine);color:#fff;flex:1;letter-spacing:.1em}
+.big.scanb svg{width:23px;height:23px}
 .big.okc{background:var(--ok);color:#fff;flex:1}
 .big.save{background:var(--marine);color:#fff;flex:1}
 .dockhint{max-width:1180px;margin:8px auto 0;font-size:12px;color:var(--faint);text-align:center;line-height:1.4}
@@ -195,7 +197,8 @@ h2{font-size:15px;margin:0 0 3px}
 @media (prefers-reduced-motion:reduce){.toast{transition:none}}
 
 /* photo + scan */
-.photoRow{display:flex;gap:8px;padding:0 14px 13px;flex-wrap:wrap}
+.photoRow{display:flex;gap:8px;padding:0 14px 8px;flex-wrap:wrap}
+.hint{padding:0 14px 14px;font-size:12.5px;color:var(--faint);line-height:1.45}
 .pill{border:1.5px solid var(--line);background:#fff;border-radius:9px;padding:11px 14px;
       font-size:14px;font-weight:600;color:var(--marine);display:flex;align-items:center;gap:7px}
 .pill.has{border-color:var(--ok);color:var(--ok)}
@@ -442,10 +445,12 @@ function render(){
   const s=sess(openSid),done=s.items.filter(i=>i.counted!==null).length;
   out.innerHTML=`
   <div class="sbar">
-    <div class="l1"><span class="nm2">${esc(s.name)}</span><span class="ct">${done}/${s.items.length}</span></div>
+    <div class="l1"><button class="bk" onclick="openSid=null;cur=null;render()">‹ Lists</button>
+      <span class="nm2">${esc(s.name)}</span><span class="ct">${done}/${s.items.length}</span></div>
     <div class="prog"><i style="width:${s.items.length?done/s.items.length*100:0}%"></i></div>
   </div>
   <div class="card">
+    <div class="lhint">Tap <b>Count</b> on a row — or press <b>SCAN</b> below to find an item by its barcode.</div>
     ${s.items.map((i,n)=>`<div class="row ${i.counted!==null?'done':''}">
       <div class="txt"><div class="t1">${i.loop==='out'?'⚠ ':''}${esc(i.n)}</div>
         <div class="t2">${esc(i.p)||'no part no'}${i.photo?' · 📷':''}${i.code?' · ▊':''}</div></div>
@@ -464,7 +469,8 @@ function renderItem(){
   if(it.counted!==null)f.push(`<div class="flag good"><span class="ic">✓</span><div>Already counted <b>${it.counted}</b> by ${it.by}. Saving again replaces that.</div></div>`);
   document.getElementById('runOut').innerHTML=`
   <div class="sbar">
-    <div class="l1"><span class="nm2">${esc(s.name)}</span><span class="ct">${cur+1}/${s.items.length}</span></div>
+    <div class="l1"><button class="bk" onclick="cur=null;render()">‹ List</button>
+      <span class="nm2">${esc(s.name)}</span><span class="ct">${cur+1}/${s.items.length}</span></div>
   </div>
   <div class="card">${f.join('')}
     <div class="hd">
@@ -484,9 +490,12 @@ function renderItem(){
     ${it.photo?`<div class="thumb"><img src="${it.photo}" alt=""><button class="x" onclick="dropPhoto()">×</button></div>`:''}
     ${it.code?`<div class="codetag"><span>${esc(it.code)} · ${esc(it.sym||'')}</span><button onclick="dropCode()">remove</button></div>`:''}
     <div class="photoRow">
-      <button class="pill ${it.photo?'has':''}" onclick="takePhoto()">${it.photo?'✓ Photo':'Add photo'}</button>
-      <button class="pill ${it.code?'has':''}" onclick="startScan('link')">${it.code?'✓ Barcode':'Link barcode'}</button>
+      <button class="pill ${it.photo?'has':''}" onclick="takePhoto()">${it.photo?'✓ Photo':'📷 Add photo'}</button>
+      <button class="pill ${it.code?'has':''}" onclick="startScan('link')">${it.code?'✓ Barcode':'▊ Link barcode'}</button>
     </div>
+    <div class="hint">${it.code
+      ? 'Scan this barcode from the list and it jumps straight here.'
+      : 'Link the barcode on the bag, then SCAN finds this item instantly next time.'}</div>
   </div>`;
   setCount(counted);
 }
@@ -555,12 +564,11 @@ function dock(){
   if(cur===null){
     const done=s.items.filter(i=>i.counted!==null).length,all=done===s.items.length;
     d.innerHTML=`<div class="dockrow">
-      <button class="big grey" onclick="openSid=null;cur=null;render()">Lists</button>
-      <button class="big scanb" onclick="startScan('find')" aria-label="scan">
+      <button class="big scanb" onclick="startScan('find')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
           <path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/>
-          <path d="M3 12h18"/></svg></button>
-      <button class="big ${all?'okc':'save'}" onclick="finish()">${all?'Finish — all counted':`Finish — ${done} of ${s.items.length}`}</button>
+          <path d="M3 12h18"/></svg>SCAN</button>
+      <button class="big ${all?'okc':'save'}" onclick="finish()">${all?'Finish':`Finish ${done}/${s.items.length}`}</button>
     </div>`;
     return;
   }
@@ -685,6 +693,18 @@ async function startScan(mode){
     }catch(e){}
   },400);
 }
+function linkCode(code,fmt,moved){
+  const it=sess(openSid).items[cur];
+  /* a code belongs to exactly one item — clear it everywhere else */
+  SESSIONS.forEach(ss=>ss.items.forEach(o=>{
+    if(o.code===code&&o.fp!==it.fp){delete o.code;delete o.sym;}
+  }));
+  CODES=CODES.filter(c=>c.code!==code&&c.fp!==it.fp);
+  it.code=code;it.sym=fmt;
+  CODES.push({code,fp:it.fp,n:it.n});
+  toast(moved?'Barcode moved to this item':'Barcode linked');
+  renderItem();
+}
 function stopScan(){
   clearInterval(scanTimer);scanTimer=null;
   if(scanStream){scanStream.getTracks().forEach(t=>t.stop());scanStream=null;}
@@ -697,10 +717,15 @@ function onCode(code,fmt){
   const s=sess(openSid);
   if(scanMode==='link'&&cur!==null){
     const it=s.items[cur];
-    it.code=code;it.sym=fmt;
-    CODES=CODES.filter(c=>c.code!==code);
-    CODES.push({code,fp:it.fp,n:it.n});
-    toast('Barcode linked');renderItem();return;
+    if(it.code===code){toast('Already linked to this item');return;}
+    const owner=CODES.find(c=>c.code===code&&c.fp!==it.fp);
+    if(owner){
+      ask('Barcode already in use',
+          `This code is linked to “${owner.n}”. A barcode can only belong to one item.`,
+          'Move it to this item',()=>linkCode(code,fmt,true));
+      return;
+    }
+    linkCode(code,fmt,false);return;
   }
   let n=s.items.findIndex(i=>i.code===code);
   if(n<0){
