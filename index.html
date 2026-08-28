@@ -437,7 +437,7 @@ const fb=initializeApp({
 const auth=getAuth(fb);
 const db=initializeFirestore(fb,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})});
 
-const BUILD='2026-08-28 g';
+const BUILD='2026-08-28 h';
 const VESSELS=['Antarctic Endurance','Antarctic Enabler','Antarctic Navigator',
                'Antarctic Provider','Antarctic Sea','Saga Sea'];
 const SHORT={'Antarctic Endurance':'AE','Antarctic Enabler':'AEN','Antarctic Navigator':'ANV',
@@ -1342,6 +1342,9 @@ function renderAdmin(){
         <button class="mini no" onclick="setRole('${u.uid}','blocked')">Block</button>
       </div></div>`).join(''):'<div class="empty">Nobody waiting.</div>'}
   </div>
+  ${USERS.filter(u=>u.role==='admin').length<2?`<div class="card"><div class="flag warn">
+    <span class="ic">!</span><div>Only one System Admin. If you lose access, nobody can approve
+    accounts or unblock anyone. Make a second person admin.</div></div></div>`:''}
   <div class="card">
     <div class="grp">Crew — ${USERS.filter(u=>u.role!=='pending').length}</div>
     ${USERS.filter(u=>u.role!=='pending').map(u=>`<div class="entry">
@@ -1351,6 +1354,7 @@ function renderAdmin(){
         <div class="t2">${u.kind==='position'?'shared · held by '+esc(u.name):'personal account'}</div>
       </div><span class="state ${u.role==='blocked'?'open':'closed'}">${u.role}</span></div>
       <div class="ebtn">
+        ${u.uid!==me.uid&&u.role!=='blocked'?`<button class="mini ${u.role==='admin'?'':'yes'}" onclick="setRole('${u.uid}','${u.role==='admin'?'user':'admin'}')">${u.role==='admin'?'Remove admin':'Make admin'}</button>`:''}
         <button class="mini" onclick="setKind('${u.uid}')">${u.kind==='position'?'Make personal':'Make shared'}</button>
         ${u.kind==='position'?`<button class="mini" onclick="setHolder('${u.uid}')">Change holder</button>`:''}
         ${u.uid!==me.uid?`<button class="mini ${u.role==='blocked'?'yes':'no'}" onclick="setRole('${u.uid}','${u.role==='blocked'?'user':'blocked'}')">${u.role==='blocked'?'Unblock':'Block'}</button>`:''}
