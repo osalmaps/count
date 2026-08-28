@@ -423,7 +423,7 @@ import {getAuth,createUserWithEmailAndPassword,signInWithEmailAndPassword,signOu
         onAuthStateChanged,sendEmailVerification,sendPasswordResetEmail,updateProfile}
   from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
 import {initializeFirestore,persistentLocalCache,persistentMultipleTabManager,
-        doc,getDoc,setDoc,updateDoc,deleteDoc,collection,getDocs,addDoc,query,where,orderBy,limit,serverTimestamp}
+        doc,getDoc,setDoc,updateDoc,deleteDoc,collection,getDocs,addDoc,query,where,orderBy,limit,serverTimestamp,onSnapshot}
   from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
 
 const fb=initializeApp({
@@ -437,7 +437,7 @@ const fb=initializeApp({
 const auth=getAuth(fb);
 const db=initializeFirestore(fb,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})});
 
-const BUILD='2026-08-28 h';
+const BUILD='2026-08-28 i';
 const VESSELS=['Antarctic Endurance','Antarctic Enabler','Antarctic Navigator',
                'Antarctic Provider','Antarctic Sea','Saga Sea'];
 const SHORT={'Antarctic Endurance':'AE','Antarctic Enabler':'AEN','Antarctic Navigator':'ANV',
@@ -605,6 +605,7 @@ window.openList=async id=>{
   const s=sess(id); if(!s)return;
   openSid=id;
   if(!s.items){toast('Loading…');await loadItems(s);}
+  watchItems(s);
   render();
 };
 function renderItem(){
@@ -740,7 +741,7 @@ function dock(){
   if(cur===null){
     const done=s.items.filter(i=>i.counted!==null).length,all=done===s.items.length;
     d.innerHTML=`<div class="dockrow">
-      <button class="big grey" onclick="openSid=null;cur=null;render()">Lists</button>
+      <button class="big grey" onclick="watchItems(null);openSid=null;cur=null;render()">Lists</button>
       <button class="big scanb" onclick="startScan('find')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
           <path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/>
@@ -1158,7 +1159,8 @@ function showGate(state,msg){
 }
 
 onAuthStateChanged(auth,async u=>{
-  if(!u){me=null;SESSIONS=[];MEMORY={};CODES=[];USERS=[];showGate('form');return;}
+  if(!u){dropListeners();
+    me=null;SESSIONS=[];MEMORY={};CODES=[];USERS=[];showGate('form');return;}
   if(!u.emailVerified){
     showGate('wait','Check your email and click the link to confirm the address, then sign in again.<br><br>'+
       'Sent to <b>'+esc(u.email)+'</b>.');
@@ -1227,6 +1229,7 @@ async function pickVessel(v){
     updateDoc(doc(db,'users',me.uid),{vessel:v}).catch(()=>{});
     $('vName').textContent=SHORT[v]||v;
     $('gate').style.display='none';
+    dropListeners();
     SESSIONS=[];MEMORY={};CODES=[];openSid=null;cur=null;tmIdx=0;
     logEvent('switched vessel',{});
     await loadAll();
@@ -1249,26 +1252,57 @@ async function enterVessel(u,d,name,pos,v){
 /* ==================== firestore ==================== */
 const tsOf=v=>v&&v.toDate?v.toDate():(v?new Date(v):new Date());
 
+let unsub=[], unsubItems=null;
+function dropListeners(){
+  unsub.forEach(f=>{try{f();}catch(e){}});unsub=[];
+  if(unsubItems){try{unsubItems();}catch(e){}unsubItems=null;}
+}
+/* true while an item card is open — never redraw under the user's fingers */
+const busy=()=>cur!==null;
+
 async function loadAll(){
   booting=true;
+  dropListeners();
   try{
-    const ss=await getDocs(query(vcol('sessions'),orderBy('at','desc'),limit(60)));
-    SESSIONS=ss.docs.map(d=>({id:d.id,...d.data(),at:tsOf(d.data().at),items:null}));
+    /* lists update live, so a list made on the PC appears on the phone */
+    unsub.push(onSnapshot(query(vcol('sessions'),orderBy('at','desc'),limit(60)),snap=>{
+      const keep={};SESSIONS.forEach(x=>{if(x.items)keep[x.id]=x.items;});
+      SESSIONS=snap.docs.map(d=>({id:d.id,...d.data(),at:tsOf(d.data().at),
+                                  items:keep[d.id]||null}));
+      if(!busy()){render();renderHist();renderTm();}
+    },e=>toast('Connection lost: '+e.code)));
+
     const ms=await getDocs(vcol('memory'));
     MEMORY={};ms.docs.forEach(d=>MEMORY[d.id]={...d.data(),lastAt:tsOf(d.data().lastAt)});
     const cs=await getDocs(vcol('codes'));
     CODES=cs.docs.map(d=>({code:d.id,...d.data()}));
-    if(me.role==='admin')await loadAdmin();
+    if(me.role==='admin')loadAdmin();
   }catch(e){toast('Could not load: '+e.code);}
   booting=false;
   seq=Date.now();
   render();renderTm();renderHist();
 }
-async function loadAdmin(){
-  const us=await getDocs(collection(db,'users'));
-  USERS=us.docs.map(d=>({uid:d.id,...d.data()}));
-  const ev=await getDocs(query(collection(db,'events'),orderBy('at','desc'),limit(80)));
-  EVENTS=ev.docs.map(d=>({id:d.id,...d.data(),at:tsOf(d.data().at)}));
+
+/* counts by other people on the open list arrive live */
+function watchItems(s){
+  if(unsubItems){unsubItems();unsubItems=null;}
+  if(!s)return;
+  unsubItems=onSnapshot(vcol('sessions',s.id,'items'),snap=>{
+    s.items=snap.docs.map(d=>({key:d.id,...d.data(),at:d.data().at?tsOf(d.data().at):null}))
+                     .sort((a,b)=>(a.ord||0)-(b.ord||0));
+    if(!busy())render();
+  });
+}
+
+function loadAdmin(){
+  unsub.push(onSnapshot(collection(db,'users'),snap=>{
+    USERS=snap.docs.map(d=>({uid:d.id,...d.data()}));
+    if(curTab==='adm')renderAdmin();
+  }));
+  unsub.push(onSnapshot(query(collection(db,'events'),orderBy('at','desc'),limit(80)),snap=>{
+    EVENTS=snap.docs.map(d=>({id:d.id,...d.data(),at:tsOf(d.data().at)}));
+    if(curTab==='adm')renderAdmin();
+  }));
 }
 async function loadItems(s){
   if(s.items)return s.items;
@@ -1370,7 +1404,7 @@ function renderAdmin(){
   </div>`;
 }
 /* inline handlers need these on window — module scope is not global */
-Object.assign(window,{enterApp,enterVessel,pickVessel,showGate,paintGate,askNo,bump,clearImport,cp,demo,dropCode,dropPhoto,finish,markEntered,openList,parsePaste,pick,printBlank,printEntry,save,setCount,setRole,signOut,startScan,startSession,stopScan,tab,takePhoto,render,renderTm,renderHist,renderAdmin,toast});
+Object.assign(window,{enterApp,watchItems,enterVessel,pickVessel,showGate,paintGate,askNo,bump,clearImport,cp,demo,dropCode,dropPhoto,finish,markEntered,openList,parsePaste,pick,printBlank,printEntry,save,setCount,setRole,signOut,startScan,startSession,stopScan,tab,takePhoto,render,renderTm,renderHist,renderAdmin,toast});
 </script>
 </body>
 </html>
