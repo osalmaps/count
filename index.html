@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Control count</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
 :root{
   --ink:#101519; --steel:#5d6b78; --faint:#8b98a4;
@@ -192,6 +193,15 @@ h2{font-size:15px;margin:0 0 3px}
 .gate .u.ship{padding:13px 15px}
 .whoPos{color:#8fa6bd;font-size:13.5px;margin:0 0 14px!important;line-height:1.5}
 .whoPos b{color:#fff}
+.phoneqr{display:none;margin-top:20px;padding-top:18px;border-top:1px solid #2b3742;
+          align-items:center;gap:14px}
+@media(min-width:760px) and (min-height:620px){.phoneqr{display:flex}}
+.qrbox{background:#fff;padding:7px;border-radius:8px;line-height:0;flex:0 0 auto}
+.qrbox img,.qrbox canvas{display:block;width:104px;height:104px}
+.qrfall{width:104px;height:104px;display:flex;align-items:center;justify-content:center;
+        font-family:var(--mono);font-size:9px;color:#333;text-align:center;padding:6px}
+.qrtx{color:#8fa6bd;font-size:12.5px;line-height:1.5}
+.qrtx b{color:#fff;font-weight:600}
 .build{color:#4d5f70;font-family:var(--mono);font-size:11px;text-align:center;margin-top:14px}
 .gerr{color:#ff9a92;font-size:13px;min-height:18px;line-height:1.4}
 .galt{display:flex;justify-content:space-between;margin-top:12px}
@@ -305,6 +315,10 @@ h2{font-size:15px;margin:0 0 3px}
 
     <div class="note" id="gNote">Accounts are approved by a System Admin before they can be used.</div>
     <div class="build" id="gBuild"></div>
+    <div class="phoneqr" id="phoneQr">
+      <div class="qrbox" id="qrBox"></div>
+      <div class="qrtx"><b>Open this on your phone</b><br>Scan with the camera, then add it to the home screen.</div>
+    </div>
   </div>
 </div>
 
@@ -395,7 +409,7 @@ const fb=initializeApp({
 const auth=getAuth(fb);
 const db=initializeFirestore(fb,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})});
 
-const BUILD='2026-08-28 e';
+const BUILD='2026-08-28 f';
 const VESSELS=['Antarctic Endurance','Antarctic Enabler','Antarctic Navigator',
                'Antarctic Provider','Antarctic Sea','Saga Sea'];
 const SHORT={'Antarctic Endurance':'AE','Antarctic Enabler':'AEN','Antarctic Navigator':'ANV',
@@ -680,7 +694,7 @@ function dock(){
     </div>`;
     return;
   }
-  if(curTab==='adm'){renderAdmin();d.className='dock hide';d.innerHTML='';return;}
+  if(curTab==='adm'){renderAdmin();drawQr('qrBox2');d.className='dock hide';d.innerHTML='';return;}
   if(curTab!=='run'){d.className='dock hide';d.innerHTML='';return;}
   const s=openSid?sess(openSid):null;
   if(!s||s.state!=='open'){
@@ -1155,6 +1169,16 @@ $('gWhoName').onkeydown=e=>{if(e.key==='Enter')$('gWhoGo').click();};
 $('gWhoOut').onclick=()=>fbSignOut(auth);
 $('gShipOut').onclick=()=>fbSignOut(auth);
 $('gBuild').textContent='build '+BUILD;
+function drawQr(id){
+  const box=document.getElementById(id); if(!box)return;
+  const url=location.origin+location.pathname;
+  box.innerHTML='';
+  if(window.QRCode){
+    try{new QRCode(box,{text:url,width:104,height:104,correctLevel:QRCode.CorrectLevel.M});return;}catch(e){}
+  }
+  box.innerHTML='<div class="qrfall">'+url.replace(/^https?:\/\//,'')+'</div>';
+}
+drawQr('qrBox');
 $('shipBtn').onclick=()=>{if(me)showGate('ship');};
 
 let pendingEnter=null;
@@ -1268,6 +1292,17 @@ function renderAdmin(){
   if(!me||me.role!=='admin'){el.innerHTML='';return;}
   const pend=USERS.filter(u=>u.role==='pending');
   el.innerHTML=`
+  <div class="card">
+    <div class="grp">Connect a phone</div>
+    <div class="entry"><div class="etop">
+      <div class="qrbox" style="border:1px solid var(--line)" id="qrBox2"></div>
+      <div class="txt" style="padding-left:12px">
+        <div class="t1">Scan to open on a phone</div>
+        <div class="t2" style="font-family:inherit;font-size:12.5px;color:var(--steel);white-space:normal">
+          Point the camera at this, then use Add to Home screen. Each person still signs in
+          with their own email once — after that the phone stays signed in.</div>
+      </div></div></div>
+  </div>
   <div class="card">
     <div class="grp">Waiting for approval — ${pend.length}</div>
     ${pend.length?pend.map(u=>`<div class="entry">
