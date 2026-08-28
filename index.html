@@ -311,6 +311,1303 @@ h2{font-size:15px;margin:0 0 3px}
   <button data-p="run" class="on" onclick="tab('run')">Count</button>
   <button data-p="imp" data-desk="1" onclick="tab('imp')">New list</button>
   <button data-p="tm" data-desk="1" onclick="tab('tm')">Enter in TM</button>
+  <button data-p="adm" data-desk="1" onclick="tab('adm')">Crew</button>
+  <button data-p="hist" onclick="tab('hist')">History</button>
+</nav>
+
+<div class="wrap">
+  <section class="pane on" id="p-run"><div id="runOut"></div></section>
+
+  <section class="pane" id="p-imp">
+    <h2>New count list</h2>
+    <p class="sub">In TM, open the stock list for a cabinet or a component. Select all, copy, paste below.</p>
+    <div class="card" style="padding:14px">
+      <textarea id="pasteBox" placeholder="Paste here — tab separated, header row included"></textarea>
+      <input class="nameIn" id="listName" placeholder="Name this list — e.g. EL shop cabinet 2">
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <button class="btn" onclick="parsePaste()">Read the list</button>
+        <button class="btn ghost" onclick="demo(1)">Example list A</button>
+        <button class="btn ghost" onclick="demo(2)">Example list B</button>
+      </div>
+    </div>
+    <div id="impOut"></div>
+  </section>
+
+  <section class="pane" id="p-tm">
+    <h2>Enter in TM</h2>
+    <p class="sub">Netted per item, grouped by which dialog you need. One row = one trip through Add or Remove Stock.</p>
+    <div id="tmOut"></div>
+  </section>
+
+  <section class="pane" id="p-adm">
+    <h2>Crew and activity</h2>
+    <p class="sub">Approve new accounts, and see who did what.</p>
+    <div id="admOut"></div>
+  </section>
+
+  <section class="pane" id="p-hist">
+    <h2>History</h2>
+    <p class="sub">Every list counted, and what happened to it.</p>
+    <div id="histOut"></div>
+  </section>
+</div>
+
+<div class="dock" id="dock"></div>
+<input type="file" id="camIn" accept="image/*" capture="environment" style="display:none">
+<video id="camVid" playsinline style="display:none"></video>
+<div class="scanview" id="scanView">
+  <div class="svtop"><span id="svMsg">Point at the barcode on the bag</span>
+    <button class="linkbtn" onclick="stopScan()">Close</button></div>
+  <div class="svbox"><div id="svHolder"></div><div class="svframe"></div></div>
+</div>
+<div id="printArea"></div>
+<div class="ask" id="ask"><div class="askbox">
+  <h3 id="askT"></h3><p id="askB"></p>
+  <div class="askrow"><button class="btn ghost" style="flex:1" onclick="askNo()">Cancel</button>
+  <button class="btn" style="flex:1" id="askY"></button></div>
+</div></div>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import {initializeApp} from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
+import {getAuth,createUserWithEmailAndPassword,signInWithEmailAndPassword,signOut as fbSignOut,
+        onAuthStateChanged,sendEmailVerification,sendPasswordResetEmail,updateProfile}
+  from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
+import {initializeFirestore,persistentLocalCache,persistentMultipleTabManager,
+        doc,getDoc,setDoc,updateDoc,deleteDoc,collection,getDocs,addDoc,query,where,orderBy,limit,serverTimestamp}
+  from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
+
+const fb=initializeApp({
+  apiKey:"AIzaSyDSSxfBo3OiobqXz5x_gcAb5BmN5JqmscE",
+  authDomain:"ae-stock-count.firebaseapp.com",
+  projectId:"ae-stock-count",
+  storageBucket:"ae-stock-count.firebasestorage.app",
+  messagingSenderId:"1067500048540",
+  appId:"1:1067500048540:web:d425597a48a4581ffcdd59"
+});
+const auth=getAuth(fb);
+const db=initializeFirestore(fb,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})});
+
+const VESSELS=['Antarctic Endurance','Antarctic Enabler','Antarctic Navigator',
+               'Antarctic Provider','Antarctic Sea','Saga Sea'];
+const SHORT={'Antarctic Endurance':'AE','Antarctic Enabler':'AEN','Antarctic Navigator':'ANV',
+             'Antarctic Provider':'APR','Antarctic Sea':'ASE','Saga Sea':'SAG'};
+const vid=v=>v.replace(/[^A-Za-z0-9]/g,'_');
+/* every vessel keeps its own lists, memory, codes and photos */
+const vcol=(...p)=>collection(db,'vessels',vid(me.vessel),...p);
+const vdoc=(...p)=>doc(db,'vessels',vid(me.vessel),...p);
+const DEMO="In Stock\tOnOrder\tOn Draft\tName\tMaker's Type\tMakers Part No\tDefault location\tMaker\tSpecification\tPrice in unit currency\tItem Type\tCurrency\tEst. Delivery Days\tMin Qty\tMax Qty\tStockTag\tSupplier\tSupplier's Ref\tReview MinMax\tTM Item No\tItem Category\tValidated\tHS Code\tHS Description\tControlled Goods\tMaterial Group\tConsumption 2026\tConsumption 2025\tConsumption 2024\tHas critical occurences\tLast Known Price\tLast Known Price Date\tUnit Specific Remarks\tQty In Use\tDangerous Goods\tDangerous Goods Class\tIHM Status\tBlocked\n\t500\t0\tSpring Washer for M8 bolt - Stainless\tSpring Washer\t\tEL\\EL SHOP\\ELC3\\S8\\4\t\tSpring Washer for M8 bolt - Stainless\t\tSpare part\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t0\t0\t0\t\t\t2026-03-26\t\t0\t\t\t\t\n\t\t\tUHF Marine Antenna \tUHF Antenna with 30m Cable\t\tEL\\Rapp/Factory SWB Room\t\t\t\tSpare part\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t0\t0\t0\t\t\t\t\t\t\t\t\t\n1\t0\t0\tGROUND RELAY START 129100-77910\t\t129100-77910\tEL\\4117 New room Across EL shop\\4\\1\\B1\t\t129100-77910\t\tSpare part\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t0\t0\t0\t\t\t2025-01-28\t\t0\t\t\t\t\n7\t\t\tCapacitor 4uF CBB60\t\tCBB60\tEL\\EL SHOP\\ELC2\\S2\\4\t\tCapacitor 4uF CBB60\t\tSpare part\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t0\t0\t0\t\t\t\t\t0\t\t\t\t\n1\t0\t0\tCJ1W-DRM21\t\t\tEL\\EL Ship Store\\ELC2\\SH2\\Box1\t\tDeviceNet master and slave unit for CJ PLS\t    933.67 USD\tSpare part\tUSD\t0\t0\t0\t\tControl Solutions AS\t\t\t\t\tX\t0\t\t\t\t0\t0\t0\t\t    933.67 USD\t2023-03-30\t\t0\t\t\t\t\n0\t0\t0\tHDMI Cable 10 meter\t\tHDMI Cable 10 meter\tEL\\B-deck fwd. port side \\Data\t\t\t\tSpare part\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t3\t0\t0\t\t\t2022-10-19\t\t0\t\t\t\t\n\t1000\t0\tMetal Screw - Wafer Head - Self Tapping - 1 inch - Stainless\tSelf Tapping Screw\t\tEL\\EL SHOP\\ELC3\\S8\\3\t\t1 inch - Stainless\t\tSpare part\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t0\t0\t0\t\t\t2026-06-16\t\t0\t\t\t\t\n796\t0\t0\tNetwork cable CAT7 \t\t CAT7 DNV Marine Approved\tEL\\Boiler Room Cables\t\t\t\tSpare part\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t0\t204\t1380\t\t\t2024-10-05\t\t0\t\t\t\t\n1\t0\t0\tYanmar - Temp Probe - 144626-91590\tTemperature Switch\t144626-91590\tEL\\4117 New room Across EL shop\\4\\1\\B1\t\t144626-91590 Temperature switch for Yanmar 6LYA-STP\t\tSpare part\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t0\t0\t0\t\t\t2025-01-28\t\t0\t\t\t\t\n\t0\t0\tEthernet Cable (Patch) 1,5meter\t\t1.5m Cat5e,RJ45 Ethernet cable (patch)\tEL\\B-deck fwd. port side \\Data\t\t\t\tSpare part\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t0\t0\t0\t\t\t\t\t0\t\t\t\t\n5\t0\t0\tCable Glands Reducer (M63-M32)\tPolyamide, Gray\tG6633200\tEL\\EL SHOP\\ELC1\\S05\\4\t\thttps://www.sibadr.fr/en/produit/reducer-plastic-gray-m63-m32/\t\tSpare part\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t0\t0\t0\t\t\t2023-04-17\t\t0\t\t\t\t\n200\t\t\tButt Wire Connector\t\t\tEL\\EL SHOP\\ELC3\\S7\\1\t\t\t\tSpare part\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t0\t0\t0\t\t\t\t\t\t\t\t\t\n0\t\t\tMiniature Circuit Breaker IC60N, 1P, 0.5A, C\t\t\tEL\\Hall Aft. Main Deck\\ELC1\\S4\\1\t\t\t\tSpare part\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t0\t0\t0\t\t\t\t\t0\t\t\t\t\n0\t0\t0\tDVI Extension Cable Female to Female 10M\tGold Line\t\tEL\\B-deck fwd. port side \\Data\t\t\t\tSpare part\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t2\t0\t0\t\t\t2021-03-04\t\t\t\t\t\t";
+const DEMO2=DEMO;
+let me=null;   /* {uid,name,email,role} */
+
+/* ---------- state ---------- */
+let SESSIONS=[];          /* {id,name,at,by,state,items:[]} */
+let MEMORY={};            /* fp -> {n,p,lastCounted,lastBase,lastAt,lastBy,lastSession} */
+let CODES=[], USERS=[], EVENTS=[];
+let seq=1, openSid=null, cur=null, counted=0, finishOk=false, curTab='run', tmIdx=0, booting=true;
+
+const now=()=>new Date();
+const hhmm=d=>new Date(d).toLocaleString([],{month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+const dayOf=d=>new Date(d).toLocaleDateString([],{day:'2-digit',month:'short'});
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const NORM=v=>String(v==null?'':v).toUpperCase().replace(/[^A-Z0-9]/g,'').replace(/^0+/,'');
+const sess=id=>SESSIONS.find(s=>s.id===id);
+
+/* ---------- import ---------- */
+const COLMAP={'name':'n','makers part no':'p',"maker's part no":'p','default location':'l','in stock':'q','maker':'m'};
+let impRows=null,impName='';
+
+function demo(n){
+  document.getElementById('pasteBox').value=n===2?DEMO2:DEMO;
+  document.getElementById('listName').value=n===2?'EL shop — recount':'EL shop — control count';
+  parsePaste();
+}
+
+function parsePaste(){
+  const raw=document.getElementById('pasteBox').value.replace(/\r/g,'');
+  const out=document.getElementById('impOut');
+  const lines=raw.split('\n').filter(l=>l.replace(/\t/g,'').trim()!=='');
+  impRows=null;dock();
+  if(lines.length<2){out.innerHTML='<div class="card"><div class="empty">Nothing readable.<br>Copy the whole list including the header row.</div></div>';return;}
+  let hi=lines.findIndex(l=>l.toLowerCase().includes('name')); if(hi<0)hi=0;
+  const head=lines[hi].split('\t').map(h=>h.trim().toLowerCase()),idx={};
+  head.forEach((h,i)=>{if(COLMAP[h]&&idx[COLMAP[h]]===undefined)idx[COLMAP[h]]=i;});
+  if(idx.n===undefined){out.innerHTML='<div class="card"><div class="empty">No <b>Name</b> column found.<br>The header row must be included in the copy.</div></div>';return;}
+
+  const seen={},rows=[];
+  lines.slice(hi+1).forEach(line=>{
+    const c=line.split('\t'), n=(c[idx.n]||'').trim(); if(!n)return;
+    const p=(c[idx.p]||'').trim();
+    let fp=NORM(n)+'|'+NORM(p);
+    seen[fp]=(seen[fp]||0)+1; if(seen[fp]>1)fp+='#'+seen[fp];
+    rows.push({fp,n,p,l:(c[idx.l]||'').trim(),m:(c[idx.m]||'').trim(),
+               base:parseInt((c[idx.q]||'').trim(),10)||0,counted:null});
+  });
+
+  let known=0,fresh=0,confirmed=0,notEntered=0;
+  rows.forEach(r=>{
+    const mem=MEMORY[r.fp];
+    if(!mem){fresh++;return;}
+    known++;
+    r.mem=mem;
+    if(mem.lastCounted===r.base)      {r.loop='in';  confirmed++;}
+    else if(mem.lastBase===r.base)    {r.loop='out'; notEntered++;}
+    else                               r.loop='moved';
+  });
+  impRows=rows;
+  impName=(document.getElementById('listName').value||'').trim()||guessName(rows);
+
+  out.innerHTML=`
+  <div class="statgrid">
+    <div class="stat"><b>${rows.length}</b><span>items in the list</span></div>
+    <div class="stat new"><b>${fresh}</b><span>counted first time</span></div>
+    <div class="stat keep"><b>${known}</b><span>seen before</span></div>
+    ${confirmed?`<div class="stat keep"><b>${confirmed}</b><span>last count reached TM</span></div>`:''}
+    ${notEntered?`<div class="stat warn"><b>${notEntered}</b><span>never entered in TM</span></div>`:''}
+  </div>
+  ${notEntered?`<div class="card" style="margin-top:14px"><div class="flag bad"><span class="ic">!</span>
+    <div><b>${notEntered} item${notEntered>1?'s':''} from an earlier count never reached TM.</b>
+    TM still shows the same figure you corrected. They are flagged in the list.</div></div></div>`:''}
+  <div class="card" style="margin-top:14px">
+    <div class="grp gprint">${esc(impName)} — ${rows.length} items
+      <button class="pbtn" onclick="printBlank()">Print tally sheet</button></div>
+    ${rows.slice(0,25).map(r=>`<div class="row">
+      <div class="txt"><div class="t1">${esc(r.n)}</div>
+        <div class="t2">${esc(r.p)||'no part no'} · <span style="color:${r.loop==='out'?'var(--stop)':r.loop?'var(--ok)':'var(--faint)'}">${
+          r.loop==='out'?'not entered!':r.loop==='in'?'counted '+dayOf(r.mem.lastAt):r.loop==='moved'?'changed since':'new'}</span></div></div>
+      <div class="q">${r.base}</div></div>`).join('')}
+    ${rows.length>25?`<div class="row"><div class="txt t2">and ${rows.length-25} more</div></div>`:''}
+  </div>`;
+  dock();
+}
+function clearImport(){
+  impRows=null;
+  document.getElementById('pasteBox').value='';
+  document.getElementById('listName').value='';
+  document.getElementById('impOut').innerHTML='';
+  dock();
+}
+function guessName(rows){
+  const c={};rows.forEach(r=>{if(r.l)c[r.l]=(c[r.l]||0)+1;});
+  const top=Object.keys(c).sort((a,b)=>c[b]-c[a])[0];
+  return top?top.split('\\').slice(-2).join(' / '):'Count '+dayOf(now());
+}
+async function startSession(){
+  if(!impRows)return;
+  const btn=document.querySelector('#dock .big.save'); if(btn)btn.disabled=true;
+  try{
+    const ref=await addDoc(vcol('sessions'),
+      {name:impName,at:serverTimestamp(),by:me.name,byUid:me.uid,state:'open',
+       total:impRows.length,done:0,changed:0});
+    const items=impRows.map((r,i)=>({fp:r.fp,n:r.n,p:r.p||'',l:r.l||'',base:r.base,
+                                     counted:null,by:null,at:null,loop:r.loop||null,ord:i}));
+    for(const it of items) await setDoc(vdoc('sessions',ref.id,'items',fpKey(it.fp)),it);
+    const s2={id:ref.id,name:impName,at:new Date(),by:me.name,byUid:me.uid,state:'open',
+              total:items.length,done:0,changed:0,items:items.map(x=>({...x,key:fpKey(x.fp)}))};
+    SESSIONS.unshift(s2);openSid=s2.id;
+    logEvent('created list',{list:impName,n:items.length});
+    clearImport();
+    toast(items.length+' items ready to count');
+    tab('run');render();renderHist();
+  }catch(e){toast('Could not save: '+e.code);}
+  if(btn)btn.disabled=false;
+}
+
+/* ---------- counting ---------- */
+function render(){
+  const out=document.getElementById('runOut');
+  if(cur){renderItem();return;}
+  const open=SESSIONS.filter(s=>s.state==='open');
+  if(!openSid||!sess(openSid)||sess(openSid).state!=='open'){
+    out.innerHTML=open.length?`
+      <h2>Lists to count</h2><p class="sub">Pick one, then work down it.</p>
+      ${open.map(s=>{const d=s.items?s.items.filter(i=>i.counted!==null).length:(s.done||0),
+                      t=s.items?s.items.length:(s.total||0);return `
+      <div class="card"><div class="row" onclick="openList('${s.id}')">
+        <div class="txt"><div class="t1">${esc(s.name)}</div>
+        <div class="t2">${dayOf(s.at)} · ${s.by} · ${d} of ${t} counted</div></div>
+        <div class="q">${t}</div><button class="go">Open</button></div></div>`;}).join('')}`
+      :`<div class="card"><div class="empty">No list to count.<br>Paste one from TM on the PC first.</div></div>`;
+    dock();return;
+  }
+  const s=sess(openSid),done=s.items.filter(i=>i.counted!==null).length;
+  out.innerHTML=`
+  <div class="sbar">
+    <div class="l1"><button class="bk" onclick="openSid=null;cur=null;render()">‹ Lists</button>
+      <span class="nm2">${esc(s.name)}</span><span class="ct">${done}/${s.items.length}</span></div>
+    <div class="prog"><i style="width:${s.items.length?done/s.items.length*100:0}%"></i></div>
+  </div>
+  <div class="card">
+    <div class="lhint">Tap <b>Count</b> on a row — or press <b>SCAN</b> below to find an item by its barcode.</div>
+    ${s.items.map((i,n)=>`<div class="row ${i.counted!==null?'done':''}">
+      <div class="txt"><div class="t1">${i.loop==='out'?'⚠ ':''}${esc(i.n)}</div>
+        <div class="t2">${esc(i.p)||'no part no'}${i.photo?' · 📷':''}${i.code?' · ▊':''}</div></div>
+      <div class="q">${i.counted!==null?`${i.counted}${i.counted!==i.base?`<div class="tmwas">TM ${i.base}</div>`:''}`:i.base}</div>
+      ${i.counted!==null?`<span class="tick">✓</span><button class="go again" onclick="pick(${n})">Again</button>`
+                        :`<button class="go" onclick="pick(${n})">Count</button>`}
+    </div>`).join('')}
+  </div>`;
+  dock();
+}
+function pick(n){const it=sess(openSid).items[n];cur=n;
+  counted=it.counted!==null?it.counted:it.base;renderItem();window.scrollTo(0,0);}
+window.openList=async id=>{
+  const s=sess(id); if(!s)return;
+  openSid=id;
+  if(!s.items){toast('Loading…');await loadItems(s);}
+  render();
+};
+function renderItem(){
+  const s=sess(openSid),it=s.items[cur],f=[];
+  if(it.loop==='out')f.push(`<div class="flag bad"><span class="ic">!</span><div>Counted <b>${MEMORY[it.fp].lastCounted}</b> on ${dayOf(MEMORY[it.fp].lastAt)} but TM still shows <b>${it.base}</b>. That correction was never entered.</div></div>`);
+  else if(it.loop==='in')f.push(`<div class="flag good"><span class="ic">✓</span><div>Last counted ${dayOf(MEMORY[it.fp].lastAt)} by ${MEMORY[it.fp].lastBy} — TM matches.</div></div>`);
+  if(it.counted!==null)f.push(`<div class="flag good"><span class="ic">✓</span><div>Already counted <b>${it.counted}</b> by ${it.by}. Saving again replaces that.</div></div>`);
+  document.getElementById('runOut').innerHTML=`
+  <div class="sbar">
+    <div class="l1"><button class="bk" onclick="cur=null;render()">‹ List</button>
+      <span class="nm2">${esc(s.name)}</span><span class="ct">${cur+1}/${s.items.length}</span></div>
+  </div>
+  <div class="card">${f.join('')}
+    <div class="hd">
+      ${it.p?`<div class="pn">${esc(it.p)}</div>`:''}
+      <p class="nm">${esc(it.n)}</p>
+      <div class="where">${esc(it.l)||'no location in TM'}</div>
+    </div>
+    <div class="qtyzone">
+      <div class="qtylab">Counted on the shelf</div>
+      <div class="pm">
+        <button onclick="bump(-1)" aria-label="one less">−</button>
+        <input id="qIn" inputmode="numeric" value="${counted}" onchange="setCount(this.value)" aria-label="counted">
+        <button onclick="bump(1)" aria-label="one more">+</button>
+      </div>
+      <div class="cmp"><span class="tmsay">TM says <b>${it.base}</b></span><span class="delta" id="qDelta"></span></div>
+    </div>
+    ${it.photo?`<div class="thumb"><img src="${it.photo}" alt=""><button class="x" onclick="dropPhoto()">×</button></div>`:''}
+    ${it.code?(()=>{const k=codeKind(it.code,it.sym),ci=codeInfo(it.code,it.sym);return `<div class="codetag ${k.cls}">
+      <div><div class="ctc">${esc(it.code)}</div><div class="ctl">${esc(ci.label)} · ${esc(k.lab)}</div></div>
+      <button onclick="dropCode()">remove</button></div>`;})():''}
+    <div class="photoRow">
+      <button class="pill ${it.photo?'has':''}" onclick="takePhoto()">${it.photo?'✓ Photo':'📷 Add photo'}</button>
+      <button class="pill ${it.code?'has':''}" onclick="startScan('link')">${it.code?'✓ Barcode':'▊ Link barcode'}</button>
+    </div>
+    <div class="hint">${it.code
+      ? 'Scan this barcode from the list and it jumps straight here.'
+      : 'Link the barcode on the bag, then SCAN finds this item instantly next time.'}</div>
+  </div>`;
+  setCount(counted);
+}
+function bump(n){setCount(counted+n);}
+function setCount(v){
+  counted=parseInt(v,10); if(isNaN(counted)||counted<0)counted=0;
+  const it=sess(openSid).items[cur],d=counted-it.base,inp=document.getElementById('qIn');
+  inp.value=counted;inp.className=d?'':'same';
+  const el=document.getElementById('qDelta');
+  el.textContent=d?(d>0?'+':'')+d:'matches';
+  el.className='delta '+(d>0?'up':d<0?'dn':'zero');
+  dock();
+}
+async function save(){
+  const s=sess(openSid), it=s.items[cur], was=it.counted;
+  it.counted=counted;it.by=me.name;it.at=new Date();
+  const n=cur; cur=null; render();
+  toast(counted===it.base?`${counted} — confirmed`:`Counted ${counted}`);
+  try{
+    await updateDoc(vdoc('sessions',s.id,'items',it.key||fpKey(it.fp)),
+      {counted,by:me.name,uid:me.uid,at:serverTimestamp()});
+    s.done=s.items.filter(i=>i.counted!==null).length;
+    s.changed=s.items.filter(i=>i.counted!==null&&i.counted!==i.base).length;
+    await updateDoc(vdoc('sessions',s.id),{done:s.done,changed:s.changed});
+    logEvent(was===null?'counted':'recounted',
+      {list:s.name,item:it.n,counted,tm:it.base,was});
+  }catch(e){toast('Not saved: '+e.code);it.counted=was;render();}
+}
+
+function finish(){
+  const s=sess(openSid);
+  const miss=s.items.filter(i=>i.counted===null).length;
+  if(miss&&!finishOk){
+    ask(miss+' item'+(miss>1?'s':'')+' not counted',
+        'They stay uncounted and come back next time you paste this list.',
+        'Finish anyway',()=>{finishOk=true;finish();});
+    return;
+  }
+  finishOk=false;
+  s.state='closed';s.closedAt=now();s.missed=miss;
+  updateDoc(vdoc('sessions',s.id),{state:'closed',closedAt:serverTimestamp(),missed:miss})
+    .catch(e=>toast('Not saved: '+e.code));
+  logEvent('finished list',{list:s.name,counted:s.items.filter(i=>i.counted!==null).length,missed:miss});
+  s.items.filter(i=>i.counted!==null).forEach(i=>{
+    MEMORY[i.fp]={n:i.n,p:i.p,lastCounted:i.counted,lastBase:i.base,
+                  lastAt:i.at||now(),lastBy:i.by||me.name,lastSession:s.id};
+    setDoc(vdoc('memory',fpKey(i.fp)),
+      {n:i.n,p:i.p||'',lastCounted:i.counted,lastBase:i.base,
+       lastAt:serverTimestamp(),lastBy:i.by||me.name,lastSession:s.id}).catch(()=>{});
+  });
+  const diff=s.items.filter(i=>i.counted!==null&&i.counted!==i.base).length;
+  toast(diff?`Finished — ${diff} to enter in TM`:'Finished — everything matched');
+  openSid=null;cur=null;render();renderTm();renderHist();
+  if(window.innerWidth>=760)tab('tm');
+}
+
+/* ---------- dock ---------- */
+function dock(){
+  const d=document.getElementById('dock');
+  if(curTab==='imp'){
+    if(!impRows){d.className='dock hide';d.innerHTML='';return;}
+    d.className='dock';
+    d.innerHTML=`<div class="dockrow">
+      <button class="big grey" onclick="clearImport()">Clear</button>
+      <button class="big save" onclick="startSession()">Start counting — ${impRows.length}</button>
+    </div>`;
+    return;
+  }
+  if(curTab==='tm'){
+    const pend=tmPending();
+    if(!pend.length){d.className='dock hide';d.innerHTML='';return;}
+    if(tmIdx>=pend.length)tmIdx=0;
+    d.className='dock';
+    d.innerHTML=`<div class="dockrow">
+      ${pend.length>1?`<button class="big grey" onclick="tmIdx=(tmIdx+1)%${pend.length};renderTm()">Next list</button>`:''}
+      <button class="big save" onclick="markEntered(${pend[tmIdx].id})">Entered in TM — done</button>
+    </div>`;
+    return;
+  }
+  if(curTab==='adm'){renderAdmin();d.className='dock hide';d.innerHTML='';return;}
+  if(curTab!=='run'){d.className='dock hide';d.innerHTML='';return;}
+  const s=openSid?sess(openSid):null;
+  if(!s||s.state!=='open'){
+    const open=SESSIONS.filter(x=>x.state==='open');
+    if(!open.length){d.className='dock hide';d.innerHTML='';return;}
+    d.className='dock';
+    d.innerHTML=`<div class="dockrow"><button class="big save" onclick="startScan('any')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
+           style="width:24px;height:24px"><path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M3 12h18"/></svg>
+      SCAN to find an item</button></div>
+    <div class="dockhint">Searches every list you have open.</div>`;
+    return;
+  }
+  d.className='dock';
+  if(cur===null){
+    const done=s.items.filter(i=>i.counted!==null).length,all=done===s.items.length;
+    d.innerHTML=`<div class="dockrow">
+      <button class="big grey" onclick="openSid=null;cur=null;render()">Lists</button>
+      <button class="big scanb" onclick="startScan('find')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+          <path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/>
+          <path d="M3 12h18"/></svg>SCAN</button>
+      <button class="big ${all?'okc':'save'}" onclick="finish()">${all?'Finish':`Finish ${done}/${s.items.length}`}</button>
+    </div>`;
+    return;
+  }
+  const it=s.items[cur],df=counted-it.base;
+  d.innerHTML=`<div class="dockrow">
+    <button class="big grey" onclick="cur=null;render()">Cancel</button>
+    ${df===0?`<button class="big okc" onclick="save()">✓ ${counted} — correct</button>`
+            :`<button class="big save" onclick="save()">Save count of ${counted}</button>`}
+  </div>
+  <div class="dockhint">${df===0?'TM already says '+it.base+'. Records the check, changes nothing.'
+                                :'TM says '+it.base+' — books '+(df>0?'+':'')+df+' for entry later.'}</div>`;
+}
+
+/* ---------- enter in TM ---------- */
+const tmPending=()=>SESSIONS.filter(s=>s.state==='closed'&&!s.entered);
+function renderTm(){
+  const el=document.getElementById('tmOut');
+  const closed=tmPending();
+  if(!closed.length){el.innerHTML='<div class="card"><div class="empty">Nothing waiting.<br>Finish a count list and it appears here.</div></div>';dock();return;}
+  if(tmIdx>=closed.length)tmIdx=0;
+  if(!closed[tmIdx].items){loadItems(closed[tmIdx]).then(()=>renderTm());
+    el.innerHTML='<div class="card"><div class="empty">Loading…</div></div>';dock();return;}
+  el.innerHTML=[closed[tmIdx]].map(s=>{
+    const rows=s.items.filter(i=>i.counted!==null&&i.counted!==i.base)
+                      .map(i=>({i,d:i.counted-i.base}));
+    const add=rows.filter(r=>r.d>0),rem=rows.filter(r=>r.d<0);
+    const ok=s.items.filter(i=>i.counted!==null&&i.counted===i.base).length;
+    const blk=(t,list,pos)=>!list.length?'':`
+      <div class="grp">${t} — ${list.length}</div>
+      ${list.map(r=>`<div class="entry">
+        <div class="etop"><div class="txt"><div class="t1">${esc(r.i.n)}</div>
+          <div class="t2">${esc(r.i.p)||'no part no'}</div>
+          <div class="t2">${esc(r.i.l)||'no location'}</div></div>
+          <div class="q ${pos?'pos':'neg'}">${Math.abs(r.d)}</div></div>
+        <div class="ebtn"><button class="mini" onclick="cp(${JSON.stringify(r.i.p||r.i.n).replace(/"/g,'&quot;')})">Copy ref</button><button class="mini" onclick="cp('${Math.abs(r.d)}')">Copy qty</button></div>
+      </div>`).join('')}`;
+    return `<div class="card">
+      <div class="shd"><div class="code">LIST ${String(s.id).padStart(3,'0')}${closed.length>1?` · ${tmIdx+1} of ${closed.length} waiting`:''}</div>
+        <p class="nm">${esc(s.name)}</p>
+        <div class="meta">counted ${dayOf(s.at)} · ${rows.length} to change · ${ok} already correct${s.missed?` · ${s.missed} not counted`:''}</div></div>
+      <div class="grp gprint">Entry sheet<button class="pbtn" onclick="printEntry(${s.id})">Print</button></div>
+      ${blk('Add Stock',add,1)}${blk('Remove Stock',rem,0)}
+      ${!rows.length?'<div class="empty">Everything matched TM. Nothing to type.</div>':''}
+    </div>`;}).join('');
+  dock();
+}
+function markEntered(id){
+  const s=sess(id);if(!s)return;s.entered=now();
+  updateDoc(vdoc('sessions',s.id),{entered:serverTimestamp(),enteredBy:me.name}).catch(()=>{});
+  logEvent('entered in TM',{list:s.name});
+  (s.items||[]).forEach(i=>{if(MEMORY[i.fp]&&i.counted!==null){
+    MEMORY[i.fp].lastBase=i.counted;
+    setDoc(vdoc('memory',fpKey(i.fp)),{lastBase:i.counted},{merge:true}).catch(()=>{});
+  }});
+  toast('Marked as entered');tmIdx=0;renderTm();renderHist();
+}
+function cp(t){navigator.clipboard&&navigator.clipboard.writeText(String(t));toast('Copied '+t);}
+
+/* ---------- history ---------- */
+function renderHist(){
+  const el=document.getElementById('histOut');
+  if(!SESSIONS.length){el.innerHTML='<div class="card"><div class="empty">No lists yet.</div></div>';return;}
+  el.innerHTML=`<div class="card">
+    ${SESSIONS.map(s=>{const ch=s.items?s.items.filter(i=>i.counted!==null&&i.counted!==i.base).length:(s.changed||0),
+                       dn=s.items?s.items.filter(i=>i.counted!==null).length:(s.done||0),
+                       tot=s.items?s.items.length:(s.total||0);return `
+    <div class="row"><div class="txt">
+      <div class="t1">${esc(s.name)}</div>
+      <div class="t2">LIST ${String(s.id).padStart(3,'0')} · ${dayOf(s.at)} · ${s.by} · ${dn}/${tot} counted${ch?` · ${ch} changed`:''}</div>
+    </div>
+    <span class="state ${s.state==='open'?'open':'closed'}">${s.state==='open'?'counting':s.entered?'in TM':'to enter'}</span>
+    </div>`;}).join('')}</div>`;
+}
+
+/* ---------- shell ---------- */
+/* ---------- photo ---------- */
+function takePhoto(){document.getElementById('camIn').click();}
+document.getElementById('camIn').onchange=function(){
+  const f=this.files&&this.files[0];this.value='';
+  if(!f||cur===null)return;
+  const fr=new FileReader();
+  fr.onload=e=>{
+    const img=new Image();
+    img.onload=()=>{
+      const max=760,sc=Math.min(1,max/Math.max(img.width,img.height));
+      const c=document.createElement('canvas');
+      c.width=Math.round(img.width*sc);c.height=Math.round(img.height*sc);
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+      const it=sess(openSid).items[cur];
+      it.photo=c.toDataURL('image/jpeg',0.6);
+      it.photoBy=me.name;it.photoAt=now();
+      renderItem();
+      setDoc(vdoc('photos',sess(openSid).id+'_'+fpKey(it.fp)),
+        {data:it.photo,by:me.name,at:serverTimestamp(),item:it.n})
+        .then(()=>{toast('Photo saved');logEvent('added photo',{item:it.n});})
+        .catch(e=>toast('Photo too big to save'));
+    };
+    img.src=e.target.result;
+  };
+  fr.readAsDataURL(f);
+};
+function dropPhoto(){const it=sess(openSid).items[cur];delete it.photo;
+  deleteDoc(vdoc('photos',sess(openSid).id+'_'+fpKey(it.fp))).catch(()=>{});
+  logEvent('removed photo',{item:it.n});renderItem();}
+function dropCode(){const it=sess(openSid).items[cur],c=it.code;
+  delete it.code;delete it.sym;CODES=CODES.filter(x=>x.fp!==it.fp);
+  if(c)deleteDoc(vdoc('codes',c)).catch(()=>{});
+  updateDoc(vdoc('sessions',sess(openSid).id,'items',it.key||fpKey(it.fp)),{code:null,sym:null}).catch(()=>{});
+  logEvent('removed barcode',{item:it.n,code:c});renderItem();}
+
+/* ---------- barcode scanning ---------- */
+let scanStream=null, scanMode='find', scanTimer=null;
+function scanSupported(){return 'BarcodeDetector' in window && navigator.mediaDevices && navigator.mediaDevices.getUserMedia;}
+async function startScan(mode){
+  scanMode=mode||'find';
+  if(!scanSupported()){
+    ask('Camera not available here',
+        location.protocol==='file:'||location.protocol==='http:'
+          ? 'The browser only allows the camera on an https address. Put the app on GitHub Pages and this works.'
+          : 'This browser has no barcode reader. Chrome on Android is the one to use.',
+        'OK',()=>{});
+    return;
+  }
+  const v=document.getElementById('camVid');
+  document.getElementById('svHolder').appendChild(v);
+  v.style.display='block';
+  document.getElementById('svMsg').textContent=scanMode==='link'
+    ? 'Point at the barcode to link it to this item'
+    : scanMode==='any' ? 'Point at a barcode to find it in any open list'
+    : 'Point at a barcode to find the item';
+  document.getElementById('scanView').classList.add('on');
+  try{
+    scanStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    v.srcObject=scanStream;await v.play();
+  }catch(e){stopScan();ask('Camera blocked','Allow camera access for this site, then try again.','OK',()=>{});return;}
+  const det=new BarcodeDetector({formats:['qr_code','ean_13','ean_8','code_128','code_39','upc_a','data_matrix']});
+  scanTimer=setInterval(async()=>{
+    try{
+      const hits=await det.detect(v);
+      if(hits && hits.length) onCode(hits[0].rawValue, hits[0].format);
+    }catch(e){}
+  },400);
+}
+const GS1=[[0,19,'USA/Canada'],[20,29,'in-store'],[30,39,'USA drugs'],[40,49,'in-store'],[50,59,'coupon'],
+ [60,139,'USA/Canada'],[200,299,'in-store'],[300,379,'France'],[380,380,'Bulgaria'],[383,383,'Slovenia'],
+ [385,385,'Croatia'],[387,387,'Bosnia'],[389,389,'Montenegro'],[400,440,'Germany'],[450,459,'Japan'],
+ [460,469,'Russia'],[471,471,'Taiwan'],[474,474,'Estonia'],[475,475,'Latvia'],[477,477,'Lithuania'],
+ [479,479,'Sri Lanka'],[480,480,'Philippines'],[481,481,'Belarus'],[482,482,'Ukraine'],[484,484,'Moldova'],
+ [485,485,'Armenia'],[486,486,'Georgia'],[487,487,'Kazakhstan'],[489,489,'Hong Kong'],[490,499,'Japan'],
+ [500,509,'UK'],[520,521,'Greece'],[528,528,'Lebanon'],[529,529,'Cyprus'],[531,531,'N. Macedonia'],
+ [535,535,'Malta'],[539,539,'Ireland'],[540,549,'Belgium/Lux'],[560,560,'Portugal'],[569,569,'Iceland'],
+ [570,579,'Denmark'],[590,590,'Poland'],[594,594,'Romania'],[599,599,'Hungary'],[600,601,'South Africa'],
+ [608,608,'Bahrain'],[611,611,'Morocco'],[613,613,'Algeria'],[616,616,'Kenya'],[619,619,'Tunisia'],
+ [621,621,'Syria'],[622,622,'Egypt'],[625,625,'Jordan'],[626,626,'Iran'],[627,627,'Kuwait'],
+ [628,628,'Saudi Arabia'],[629,629,'UAE'],[630,630,'Qatar'],[640,649,'Finland'],[690,699,'China'],
+ [700,709,'Norway'],[729,729,'Israel'],[730,739,'Sweden'],[740,745,'Central America'],[746,746,'Dominican Rep'],
+ [750,750,'Mexico'],[754,755,'Canada'],[759,759,'Venezuela'],[760,769,'Switzerland'],[770,771,'Colombia'],
+ [773,773,'Uruguay'],[775,775,'Peru'],[777,777,'Bolivia'],[778,779,'Argentina'],[780,780,'Chile'],
+ [784,784,'Paraguay'],[786,786,'Ecuador'],[789,790,'Brazil'],[800,839,'Italy'],[840,849,'Spain'],
+ [850,850,'Cuba'],[858,858,'Slovakia'],[859,859,'Czechia'],[860,860,'Serbia'],[865,865,'Mongolia'],
+ [867,867,'North Korea'],[868,869,'Turkey'],[870,879,'Netherlands'],[880,880,'South Korea'],
+ [884,884,'Cambodia'],[885,885,'Thailand'],[888,888,'Singapore'],[890,890,'India'],[893,893,'Vietnam'],
+ [896,896,'Pakistan'],[899,899,'Indonesia'],[900,919,'Austria'],[930,939,'Australia'],[940,949,'New Zealand'],
+ [955,955,'Malaysia'],[958,958,'Macau'],[977,977,'ISSN periodical'],[978,979,'ISBN book'],[980,980,'refund receipt'],
+ [981,984,'coupon'],[990,999,'coupon']];
+function gs1(pre){const n=parseInt(pre,10);for(const r of GS1)if(n>=r[0]&&n<=r[1])return r[2];return '';}
+function codeInfo(code,fmt){
+  const f=(fmt||'').toLowerCase();
+  const pretty={ean_13:'EAN-13',ean_8:'EAN-8',upc_a:'UPC-A',upc_e:'UPC-E',code_128:'Code 128',
+                code_39:'Code 39',qr_code:'QR',data_matrix:'DataMatrix',itf:'ITF'}[f]||(fmt||'code');
+  const out={label:pretty,ok:null,where:''};
+  if(/^\d+$/.test(code)&&(f==='ean_13'||f==='ean_8'||f==='upc_a')){
+    const d=code.split('').map(Number),chk=d.pop();
+    let sum=0;
+    d.reverse().forEach((n,i)=>sum+=n*(i%2===0?3:1));
+    out.ok=((10-(sum%10))%10)===chk;
+    if(f!=='ean_8'){
+      out.where=gs1((f==='upc_a'?'0'+code:code).slice(0,3));
+    }
+  }
+  return out;
+}
+function codeKind(code,fmt){
+  const ci=codeInfo(code,fmt),f=(fmt||'').toLowerCase();
+  if(ci.ok===false)return {cls:'bad',lab:'Check digit fails — misread'};
+  if(ci.ok===true)return {cls:'good',lab:'Product code'+(ci.where?' · '+ci.where:'')+' — same on every delivery'};
+  if(f.includes('qr')||f.includes('data_matrix'))
+    return {cls:'warn',lab:'Check it is marked on the part, not the packaging'};
+  return {cls:'warn',lab:'Supplier code — may change with the next delivery'};
+}
+function linkCode(code,fmt,moved){
+  const it=sess(openSid).items[cur];
+  /* a code belongs to exactly one item — clear it everywhere else */
+  SESSIONS.forEach(ss=>ss.items.forEach(o=>{
+    if(o.code===code&&o.fp!==it.fp){delete o.code;delete o.sym;}
+  }));
+  CODES=CODES.filter(c=>c.code!==code&&c.fp!==it.fp);
+  it.code=code;it.sym=fmt;
+  CODES.push({code,fp:it.fp,n:it.n});
+  setDoc(vdoc('codes',code),{fp:it.fp,n:it.n,sym:fmt,by:me.name,at:serverTimestamp()}).catch(()=>{});
+  updateDoc(vdoc('sessions',sess(openSid).id,'items',it.key||fpKey(it.fp)),{code,sym:fmt}).catch(()=>{});
+  logEvent(moved?'moved barcode':'linked barcode',{item:it.n,code});
+  const kk=codeKind(code,fmt);
+  toast(moved?'Barcode moved to this item':kk.cls==='good'?'Product code linked':'Linked — check the note');
+  renderItem();
+}
+function stopScan(){
+  clearInterval(scanTimer);scanTimer=null;
+  if(scanStream){scanStream.getTracks().forEach(t=>t.stop());scanStream=null;}
+  document.getElementById('camVid').style.display='none';
+  document.getElementById('scanView').classList.remove('on');
+}
+function onCode(code,fmt){
+  if(navigator.vibrate)navigator.vibrate(40);
+  stopScan();
+  const s=sess(openSid);
+  if(scanMode==='link'&&cur!==null){
+    const it=s.items[cur];
+    if(it.code===code){toast('Already linked to this item');return;}
+    const k=codeKind(code,fmt);
+    if(k.cls==='bad'){ask('That did not read cleanly',
+      'The check digit does not match, so the scan was misread. Hold steadier and try again.','OK',()=>{});return;}
+    const owner=CODES.find(c=>c.code===code&&c.fp!==it.fp);
+    if(owner){
+      ask('Barcode already in use',
+          `This code is linked to “${owner.n}”. A barcode can only belong to one item.`,
+          'Move it to this item',()=>linkCode(code,fmt,true));
+      return;
+    }
+    linkCode(code,fmt,false);return;
+  }
+  const known=CODES.find(c=>c.code===code);
+  const hunt=ss=>{
+    let n=ss.items.findIndex(i=>i.code===code);
+    if(n<0&&known)n=ss.items.findIndex(i=>i.fp===known.fp);
+    return n;
+  };
+  if(s&&s.state==='open'){
+    const n=hunt(s);
+    if(n>=0){pick(n);return;}
+  }
+  for(const ss of SESSIONS.filter(x=>x.state==='open'&&x!==s)){
+    const n=hunt(ss);
+    if(n>=0){openSid=ss.id;render();pick(n);toast('Found in “'+ss.name+'”');return;}
+  }
+  toast(known?'On no open list — “'+known.n+'”':'Barcode not linked to anything yet');
+}
+
+/* ---------- printing ---------- */
+function pHead(title,s,extra){
+  return `<div class="phd"><h1>${esc(title)}</h1>
+    <div class="pmeta">
+      <span><b>List:</b> ${esc(s.name)}</span>
+      <span><b>No:</b> ${String(s.id).padStart(3,'0')}</span>
+      <span><b>Date:</b> ${new Date(s.at).toLocaleDateString()}</span>
+      <span><b>Started by:</b> ${esc(s.by)}</span>
+      ${extra||''}
+    </div></div>`;
+}
+function printBlank(){
+  if(!impRows)return;
+  const name=impName||'Count list';
+  const fake={id:SESSIONS.length+1,name:name,at:now(),by:me.name};
+  document.getElementById('printArea').innerHTML=`<div class="psheet">
+    ${pHead('Stock control count — tally sheet',fake,`<span><b>Items:</b> ${impRows.length}</span>`)}
+    <table class="pt"><thead><tr>
+      <th style="width:16pt">#</th><th>Item</th><th style="width:78pt">Part no</th>
+      <th style="width:96pt">Location</th><th class="pnum" style="width:34pt">TM</th>
+      <th style="width:52pt">Counted</th></tr></thead><tbody>
+    ${impRows.map((r,i)=>`<tr>
+      <td class="pnum">${i+1}</td>
+      <td>${esc(r.n)}</td>
+      <td>${esc(r.p)||'—'}</td>
+      <td class="ploc">${esc(r.l)||'—'}</td>
+      <td class="pnum">${r.base}</td>
+      <td><span class="pbox"></span></td></tr>`).join('')}
+    </tbody></table>
+    <div class="psig"><div>Counted by (name / date)</div><div>Checked by (name / date)</div></div>
+    <div class="pfoot">Write the counted quantity only where it differs from TM. Leave blank if correct.</div>
+  </div>`;
+  window.print();
+}
+function printEntry(id){
+  const s=sess(id);if(!s)return;
+  const rows=s.items.filter(i=>i.counted!==null&&i.counted!==i.base).map(i=>({i,d:i.counted-i.base}));
+  const add=rows.filter(r=>r.d>0),rem=rows.filter(r=>r.d<0);
+  const ok=s.items.filter(i=>i.counted!==null&&i.counted===i.base).length;
+  const miss=s.items.filter(i=>i.counted===null).length;
+  const blk=(t,list)=>!list.length?'':`<div class="pgrp">${t} — ${list.length}</div>
+    <table class="pt"><thead><tr>
+      <th style="width:16pt">#</th><th>Item</th><th style="width:78pt">Part no</th>
+      <th style="width:92pt">Location</th><th class="pnum" style="width:30pt">TM</th>
+      <th class="pnum" style="width:38pt">Counted</th><th class="pnum" style="width:34pt">Qty</th>
+      <th style="width:26pt">Done</th></tr></thead><tbody>
+    ${list.map((r,i)=>`<tr>
+      <td class="pnum">${i+1}</td><td>${esc(r.i.n)}</td><td>${esc(r.i.p)||'—'}</td>
+      <td class="ploc">${esc(r.i.l)||'—'}</td>
+      <td class="pnum">${r.i.base}</td><td class="pnum">${r.i.counted}</td>
+      <td class="pnum"><b>${Math.abs(r.d)}</b></td>
+      <td><span class="pbox" style="width:16pt"></span></td></tr>`).join('')}
+    </tbody></table>`;
+  document.getElementById('printArea').innerHTML=`<div class="psheet">
+    ${pHead('Stock control count — enter in TM',s,
+      `<span><b>To change:</b> ${rows.length}</span><span><b>Correct:</b> ${ok}</span>${miss?`<span><b>Not counted:</b> ${miss}</span>`:''}`)}
+    ${blk('Add Stock',add)}${blk('Remove Stock',rem)}
+    ${!rows.length?'<p style="font-size:10pt">Everything matched TM. Nothing to enter.</p>':''}
+    <div class="psig"><div>Entered in TM by (name / date)</div><div>Checked by (name / date)</div></div>
+  </div>`;
+  window.print();
+}
+
+function tab(p){
+  curTab=p;
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));
+  document.querySelectorAll('section.pane').forEach(s=>s.classList.toggle('on',s.id==='p-'+p));
+  dock();window.scrollTo(0,0);
+}
+let askFn=null;
+function ask(t,b,yes,fn){
+  document.getElementById('askT').textContent=t;
+  document.getElementById('askB').textContent=b;
+  document.getElementById('askY').textContent=yes;
+  askFn=fn;document.getElementById('ask').classList.add('on');
+}
+function askNo(){document.getElementById('ask').classList.remove('on');askFn=null;}
+document.getElementById('askY').onclick=()=>{const f=askFn;askNo();if(f)f();};
+function toast(t){const e=document.getElementById('toast');e.textContent=t;e.classList.add('on');
+  clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('on'),1800);}
+
+/* ==================== auth ==================== */
+let mode='in';
+const $=id=>document.getElementById(id);
+const gErr=t=>{$('gErr').textContent=t||'';};
+
+function paintGate(){
+  const up=mode==='up';
+  $('gName').style.display=up?'block':'none';
+  $('gTitle').textContent=up?'Create an account':'Control count';
+  $('gSub').textContent=up?'A System Admin approves the account before it can be used.'
+                          :'Sign in — every count is recorded against your name.';
+  $('gGo').textContent=up?'Create account':'Sign in';
+  $('gSwap').textContent=up?'I already have an account':'Create an account';
+  $('gPass').autocomplete=up?'new-password':'current-password';
+  gErr('');
+}
+$('gSwap').onclick=()=>{mode=mode==='up'?'in':'up';paintGate();};
+
+const AUTHMSG={
+ 'auth/invalid-email':'That email address is not valid.',
+ 'auth/missing-password':'Enter your password.',
+ 'auth/weak-password':'Password must be at least 6 characters.',
+ 'auth/email-already-in-use':'That email already has an account. Sign in instead.',
+ 'auth/invalid-credential':'Email or password is wrong.',
+ 'auth/wrong-password':'Email or password is wrong.',
+ 'auth/user-not-found':'No account with that email.',
+ 'auth/too-many-requests':'Too many attempts. Wait a few minutes.',
+ 'auth/network-request-failed':'No connection. Check the wifi and try again.'
+};
+const authErr=e=>AUTHMSG[e.code]||e.message||'Something went wrong.';
+
+$('gGo').onclick=async()=>{
+  const email=$('gEmail').value.trim(), pass=$('gPass').value, name=$('gName').value.trim();
+  gErr('');$('gGo').disabled=true;
+  try{
+    if(mode==='up'){
+      if(name.length<2){gErr('Enter your full name.');$('gGo').disabled=false;return;}
+      const cred=await createUserWithEmailAndPassword(auth,email,pass);
+      await updateProfile(cred.user,{displayName:name});
+      await setDoc(doc(db,'users',cred.user.uid),
+        {name,email,role:'pending',createdAt:serverTimestamp()});
+      await sendEmailVerification(cred.user);
+    }else{
+      await signInWithEmailAndPassword(auth,email,pass);
+    }
+  }catch(e){gErr(authErr(e));}
+  $('gGo').disabled=false;
+};
+$('gPass').onkeydown=e=>{if(e.key==='Enter')$('gGo').click();};
+$('gReset').onclick=async()=>{
+  const email=$('gEmail').value.trim();
+  if(!email){gErr('Type your email first, then press this.');return;}
+  try{await sendPasswordResetEmail(auth,email);gErr('');toast('Reset email sent');}
+  catch(e){gErr(authErr(e));}
+};
+$('gOut').onclick=()=>fbSignOut(auth);
+window.signOut=()=>fbSignOut(auth);
+
+function showGate(state,msg){
+  $('gate').style.display='flex';
+  $('gForm').style.display=state==='form'?'block':'none';
+  $('gWho').style.display=state==='who'?'block':'none';
+  $('gShip').style.display=state==='ship'?'block':'none';
+  $('gWait').style.display=state==='wait'?'block':'none';
+  $('gNote').style.display=state==='form'?'block':'none';
+  if(state==='form'){paintGate();return;}
+  if(state==='wait'){$('gTitle').textContent='Almost there';$('gSub').textContent='';$('gWaitMsg').innerHTML=msg;return;}
+  if(state==='ship'){
+    $('gTitle').textContent='Which vessel?';
+    $('gSub').textContent='Each ship keeps its own lists. You can change this later.';
+    $('shipList').innerHTML=VESSELS.map(v=>`<button class="u ship" data-v="${v}">
+      <span class="av">${SHORT[v]}</span><span class="un">${v}</span></button>`).join('');
+    $('shipList').querySelectorAll('button').forEach(b=>b.onclick=()=>pickVessel(b.dataset.v));
+    return;
+  }
+  $('gTitle').textContent='Who is counting?';
+  $('gSub').textContent='This name goes on every count you record.';
+  $('gWhoPos').innerHTML=msg;
+}
+
+onAuthStateChanged(auth,async u=>{
+  if(!u){me=null;SESSIONS=[];MEMORY={};CODES=[];USERS=[];showGate('form');return;}
+  if(!u.emailVerified){
+    showGate('wait','Check your email and click the link to confirm the address, then sign in again.<br><br>'+
+      'Sent to <b>'+esc(u.email)+'</b>.');
+    return;
+  }
+  let snap;
+  try{snap=await getDoc(doc(db,'users',u.uid));}catch(e){showGate('wait','Cannot reach the database. Check the connection.');return;}
+  if(!snap.exists()){
+    await setDoc(doc(db,'users',u.uid),{name:u.displayName||u.email,email:u.email,role:'pending',createdAt:serverTimestamp()});
+    showGate('wait','Account created. A System Admin must approve it before you can count.');return;
+  }
+  const d=snap.data();
+  if(d.role==='pending'){showGate('wait','Waiting for a System Admin to approve this account.');return;}
+  if(d.role==='blocked'){showGate('wait','This account has been blocked.');return;}
+  const pos=(d.kind==='position')?(d.position||'Shared account'):null;
+  if(pos){
+    let last='';try{last=localStorage.getItem('counter:'+u.uid)||'';}catch(e){}
+    $('gWhoName').value=last||d.name||'';
+    showGate('who','<b>'+esc(pos)+'</b><br>'+esc(u.email)+' is shared, so type the name of whoever is counting today.');
+    pendingUser={u,d,pos};
+    setTimeout(()=>$('gWhoName').focus(),80);
+    return;
+  }
+  await enterApp(u,d,d.name||u.email,null);
+});
+
+let pendingUser=null;
+$('gWhoGo').onclick=async()=>{
+  const nm=$('gWhoName').value.trim();
+  if(nm.length<2){$('gWhoName').focus();return;}
+  const {u,d,pos}=pendingUser;
+  try{localStorage.setItem('counter:'+u.uid,nm);}catch(e){}
+  await enterApp(u,d,nm,pos);
+};
+$('gWhoName').onkeydown=e=>{if(e.key==='Enter')$('gWhoGo').click();};
+$('gWhoOut').onclick=()=>fbSignOut(auth);
+$('gShipOut').onclick=()=>fbSignOut(auth);
+$('shipBtn').onclick=()=>{if(me)showGate('ship');};
+
+let pendingEnter=null;
+async function enterApp(u,d,name,pos){
+  let v='';
+  try{v=localStorage.getItem('vessel:'+u.uid)||'';}catch(e){}
+  if(!v||VESSELS.indexOf(v)<0)v=d.vessel&&VESSELS.indexOf(d.vessel)>=0?d.vessel:'';
+  if(!v){pendingEnter={u,d,name,pos};showGate('ship');return;}
+  await enterVessel(u,d,name,pos,v);
+}
+async function pickVessel(v){
+  try{localStorage.setItem('vessel:'+(pendingEnter?pendingEnter.u.uid:me.uid),v);}catch(e){}
+  if(pendingEnter){
+    const {u,d,name,pos}=pendingEnter; pendingEnter=null;
+    await enterVessel(u,d,name,pos,v);
+  }else{
+    me.vessel=v;
+    updateDoc(doc(db,'users',me.uid),{vessel:v}).catch(()=>{});
+    $('vName').textContent=SHORT[v]||v;
+    $('gate').style.display='none';
+    SESSIONS=[];MEMORY={};CODES=[];openSid=null;cur=null;tmIdx=0;
+    logEvent('switched vessel',{});
+    await loadAll();
+    toast('Now on '+v);
+  }
+}
+async function enterVessel(u,d,name,pos,v){
+  me={uid:u.uid,name,email:u.email,role:d.role,position:pos,vessel:v};
+  if(d.vessel!==v)updateDoc(doc(db,'users',u.uid),{vessel:v}).catch(()=>{});
+  $('vName').textContent=SHORT[v]||v;
+  $('whoName').textContent=name.split(' ')[0];
+  const c=$('whoRole');c.textContent=me.role;c.className='chip '+(me.role==='admin'?'admin':'');
+  document.querySelectorAll('nav.tabs button[data-desk]').forEach(b=>{
+    b.style.display=me.role==='admin'?'block':'none';});
+  $('gate').style.display='none';
+  await loadAll();
+  logEvent('signed in',{});
+}
+
+/* ==================== firestore ==================== */
+const tsOf=v=>v&&v.toDate?v.toDate():(v?new Date(v):new Date());
+
+async function loadAll(){
+  booting=true;
+  try{
+    const ss=await getDocs(query(vcol('sessions'),orderBy('at','desc'),limit(60)));
+    SESSIONS=ss.docs.map(d=>({id:d.id,...d.data(),at:tsOf(d.data().at),items:null}));
+    const ms=await getDocs(vcol('memory'));
+    MEMORY={};ms.docs.forEach(d=>MEMORY[d.id]={...d.data(),lastAt:tsOf(d.data().lastAt)});
+    const cs=await getDocs(vcol('codes'));
+    CODES=cs.docs.map(d=>({code:d.id,...d.data()}));
+    if(me.role==='admin')await loadAdmin();
+  }catch(e){toast('Could not load: '+e.code);}
+  booting=false;
+  seq=Date.now();
+  render();renderTm();renderHist();
+}
+async function loadAdmin(){
+  const us=await getDocs(collection(db,'users'));
+  USERS=us.docs.map(d=>({uid:d.id,...d.data()}));
+  const ev=await getDocs(query(collection(db,'events'),orderBy('at','desc'),limit(80)));
+  EVENTS=ev.docs.map(d=>({id:d.id,...d.data(),at:tsOf(d.data().at)}));
+}
+async function loadItems(s){
+  if(s.items)return s.items;
+  const q=await getDocs(vcol('sessions',s.id,'items'));
+  s.items=q.docs.map(d=>({key:d.id,...d.data(),at:d.data().at?tsOf(d.data().at):null}))
+                .sort((a,b)=>(a.ord||0)-(b.ord||0));
+  return s.items;
+}
+async function logEvent(what,extra){
+  if(!me)return;
+  try{await addDoc(collection(db,'events'),
+    {who:me.name,position:me.position||null,uid:me.uid,vessel:me.vessel,
+     what,at:serverTimestamp(),...extra});}catch(e){}
+}
+const fpKey=fp=>fp.replace(/[\/\\#?\[\]]/g,'_').slice(0,180);
+
+/* ==================== admin ==================== */
+window.setKind=async uid=>{
+  const u=USERS.find(x=>x.uid===uid); if(!u)return;
+  if(u.kind==='position'){
+    await updateDoc(doc(db,'users',uid),{kind:'person',position:null});
+    u.kind='person';u.position=null;logEvent('set account type',{target:uid,kind:'person'});
+  }else{
+    const t=prompt('Which position uses this mailbox?\ne.g. Chief Electrician, Factory Manager',u.position||'');
+    if(!t)return;
+    await updateDoc(doc(db,'users',uid),{kind:'position',position:t.trim()});
+    u.kind='position';u.position=t.trim();logEvent('set account type',{target:uid,kind:'position',position:t.trim()});
+  }
+  renderAdmin();
+};
+window.setHolder=async uid=>{
+  const u=USERS.find(x=>x.uid===uid); if(!u)return;
+  const n=prompt('Who holds this position now?',u.name||'');
+  if(!n||n.trim().length<2)return;
+  await updateDoc(doc(db,'users',uid),{name:n.trim()});
+  u.name=n.trim();logEvent('changed holder',{target:uid,name:n.trim()});
+  toast('Holder updated');renderAdmin();
+};
+window.setRole=async(uid,role)=>{
+  try{
+    await updateDoc(doc(db,'users',uid),{role});
+    const u=USERS.find(x=>x.uid===uid); if(u)u.role=role;
+    logEvent('set role',{target:uid,role});
+    toast('Role set to '+role);renderAdmin();
+  }catch(e){toast('Failed: '+e.code);}
+};
+function renderAdmin(){
+  const el=$('admOut'); if(!el)return;
+  if(!me||me.role!=='admin'){el.innerHTML='';return;}
+  const pend=USERS.filter(u=>u.role==='pending');
+  el.innerHTML=`
+  <div class="card">
+    <div class="grp">Waiting for approval — ${pend.length}</div>
+    ${pend.length?pend.map(u=>`<div class="entry">
+      <div class="etop"><div class="txt"><div class="t1">${esc(u.name)}</div>
+        <div class="t2">${esc(u.email)}</div></div></div>
+      <div class="ebtn">
+        <button class="mini yes" onclick="setRole('${u.uid}','user')">Allow counting</button>
+        <button class="mini yes" onclick="setRole('${u.uid}','admin')">Make admin</button>
+        <button class="mini no" onclick="setRole('${u.uid}','blocked')">Block</button>
+      </div></div>`).join(''):'<div class="empty">Nobody waiting.</div>'}
+  </div>
+  <div class="card">
+    <div class="grp">Crew — ${USERS.filter(u=>u.role!=='pending').length}</div>
+    ${USERS.filter(u=>u.role!=='pending').map(u=>`<div class="entry">
+      <div class="etop"><div class="txt">
+        <div class="t1">${u.kind==='position'?esc(u.position||'Position'):esc(u.name)}</div>
+        <div class="t2">${esc(u.email)}</div>
+        <div class="t2">${u.kind==='position'?'shared · held by '+esc(u.name):'personal account'}</div>
+      </div><span class="state ${u.role==='blocked'?'open':'closed'}">${u.role}</span></div>
+      <div class="ebtn">
+        <button class="mini" onclick="setKind('${u.uid}')">${u.kind==='position'?'Make personal':'Make shared'}</button>
+        ${u.kind==='position'?`<button class="mini" onclick="setHolder('${u.uid}')">Change holder</button>`:''}
+        ${u.uid!==me.uid?`<button class="mini ${u.role==='blocked'?'yes':'no'}" onclick="setRole('${u.uid}','${u.role==='blocked'?'user':'blocked'}')">${u.role==='blocked'?'Unblock':'Block'}</button>`:''}
+      </div></div>`).join('')}
+  </div>
+  <div class="card">
+    <div class="grp">Activity — last ${EVENTS.length}</div>
+    <div class="row"><div class="txt t2">Append only. Entries cannot be edited or deleted, by anyone.</div></div>
+    ${EVENTS.length?EVENTS.map(e=>`<div class="row">
+      <div class="txt"><div class="t1">${esc(e.who)}${e.position?' <span style="color:var(--faint);font-weight:500">('+esc(e.position)+')</span>':''} — ${esc(e.what)}</div>
+      <div class="t2">${e.list?esc(e.list)+' · ':''}${e.item?esc(e.item)+' · ':''}${hhmm(e.at)}</div></div>
+    </div>`).join(''):'<div class="empty">Nothing yet.</div>'}
+  </div>`;
+}
+/* inline handlers need these on window — module scope is not global */
+Object.assign(window,{enterApp,enterVessel,pickVessel,showGate,paintGate,askNo,bump,clearImport,cp,demo,dropCode,dropPhoto,finish,markEntered,openList,parsePaste,pick,printBlank,printEntry,save,setCount,setRole,signOut,startScan,startSession,stopScan,tab,takePhoto,render,renderTm,renderHist,renderAdmin,toast});
+</script>
+</body>
+</html><!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Control count</title>
+<style>
+:root{
+  --ink:#101519; --steel:#5d6b78; --faint:#8b98a4;
+  --paper:#eef1f4; --card:#fff; --line:#d2d9e0;
+  --marine:#12457f; --marine-d:#0d3462;
+  --signal:#b4500a; --signal-bg:#fdf1e5;
+  --ok:#0a6b4c; --ok-bg:#e8f4ef;
+  --stop:#93231f; --stop-bg:#fbeceb;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Roboto Mono",monospace;
+  --dock:150px; --hdr:44px; --tabs:49px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{overflow-x:clip}
+body{margin:0;overflow-x:clip;background:var(--paper);color:var(--ink);
+     font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:16px;line-height:1.45}
+button{font-family:inherit;font-size:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit;font-size:16px}
+
+header.top{background:var(--ink);color:#fff;height:var(--hdr);padding:0 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:40}
+.brandmark{font-family:var(--mono);font-size:12px;letter-spacing:.16em;color:#8fa6bd;text-transform:uppercase}
+.brandmark b{color:#fff;font-weight:600}
+.shipbtn{background:none;border:0;padding:6px 0;display:flex;align-items:center;gap:4px;
+         font-family:var(--mono);font-size:12px;letter-spacing:.16em;color:#8fa6bd;text-transform:uppercase}
+.shipbtn .caret{font-size:10px;letter-spacing:0}
+.who{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px}
+.chip{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:3px 7px;border-radius:3px;background:#26313c;color:#c3d2e0}
+.chip.admin{background:var(--signal);color:#fff}
+.linkbtn{background:none;border:0;color:#8fa6bd;font-size:13px;text-decoration:underline;padding:4px}
+
+nav.tabs{display:flex;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:var(--hdr);z-index:35}
+nav.tabs button[data-desk]{display:none}
+nav.tabs{height:var(--tabs)}
+nav.tabs button{flex:1 1 0;min-width:0;background:none;border:0;border-bottom:3px solid transparent;
+                padding:0 4px;color:var(--steel);font-weight:600;font-size:14.5px;
+                white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+nav.tabs button.on{color:var(--marine);border-bottom-color:var(--marine)}
+
+.wrap{max-width:1180px;margin:0 auto;padding:0 0 calc(var(--dock) + 16px)}
+@media(min-width:760px){.wrap{padding-bottom:40px}}
+section.pane{display:none;padding:14px}
+section.pane.on{display:block}
+h2{font-size:15px;margin:0 0 3px}
+.sub{color:var(--steel);font-size:13.5px;margin:0 0 14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;margin-bottom:14px}
+.grp{padding:11px 13px;background:#f6f8fa;border-bottom:1px solid var(--line);font-size:12px;
+     font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--steel)}
+.empty{padding:36px 20px;text-align:center;color:var(--faint);font-size:14px;line-height:1.6}
+.btn{background:var(--marine);color:#fff;border:0;border-radius:9px;padding:15px 18px;font-weight:600}
+.btn:active{background:var(--marine-d)}
+.btn.ghost{background:#fff;color:var(--marine);border:1.5px solid var(--line)}
+.btn.wide{display:block;width:100%}
+.btn:disabled{background:#c5ccd3}
+.btn.done{background:var(--ok)}
+.btn.done:active{background:#085139}
+.mini{border:1.5px solid var(--line);background:#fff;border-radius:7px;padding:9px 13px;font-size:13.5px;margin:0 5px 5px 0;font-weight:500}
+.mini.yes{border-color:var(--ok);color:var(--ok)}
+
+/* rows */
+.row{display:flex;align-items:center;gap:12px;padding:13px 14px;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+.row .txt{flex:1;min-width:0}
+.row .t1{font-size:15px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .t2{font-family:var(--mono);font-size:11.5px;color:var(--faint);margin-top:2px;
+         overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .q{font-family:var(--mono);font-size:20px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
+.row .tmwas{font-size:11px;font-weight:500;color:var(--faint);text-decoration:line-through}
+.row .go{border:1.5px solid var(--line);background:#fff;border-radius:7px;padding:11px 15px;font-size:14px;color:var(--marine);font-weight:600}
+.row .go.again{border-color:#b9cdbf;color:var(--ok);padding:11px 12px}
+.lhint{padding:11px 14px;font-size:12.5px;color:var(--steel);background:#f6f8fa;border-bottom:1px solid var(--line);line-height:1.45}
+.row.done{background:var(--ok-bg)}
+.row.done .q{color:var(--ok)}
+.tick{color:var(--ok);font-size:19px;font-weight:700}
+
+/* sticky list bar */
+.sbar{position:sticky;top:calc(var(--hdr) + var(--tabs));z-index:30;background:var(--ink);color:#fff;
+      padding:10px 14px;margin:-14px -14px 14px}
+.sbar .l1{display:flex;align-items:baseline;gap:10px}
+.sbar .bk{background:none;border:0;color:#7fa8d6;font-size:14px;font-weight:600;padding:2px 8px 2px 0;flex:0 0 auto}
+.sbar .nm2{font-size:15px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sbar .ct{font-family:var(--mono);font-size:12.5px;color:#a9bccf;flex:0 0 auto}
+.sbar .prog{margin-top:7px}
+
+/* session header */
+.shd{padding:14px;background:var(--ink);color:#fff;border-radius:8px 8px 0 0}
+.shd .nm{font-size:17px;font-weight:600;margin:2px 0 0}
+.shd .meta{font-family:var(--mono);font-size:11.5px;color:#a9bccf;margin-top:4px}
+.shd .code{font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;color:#7fa8d6;font-weight:700}
+.prog{height:6px;background:#26313c;border-radius:3px;margin-top:10px;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--ok);transition:width .2s}
+.progtx{font-size:12.5px;color:#a9bccf;margin-top:6px}
+
+/* item card */
+.hd{padding:13px 14px}
+.nm{font-size:20px;font-weight:600;line-height:1.2;margin:0;letter-spacing:-.01em}
+.where{font-family:var(--mono);font-size:11.5px;color:var(--steel);margin-top:5px;word-break:break-word}
+.pn{font-family:var(--mono);font-size:12.5px;color:var(--marine);font-weight:600}
+.qtyzone{padding:16px 14px 18px;background:#f6f8fa;border-top:1px solid var(--line);text-align:center}
+.qtylab{font-size:11.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--faint)}
+.pm{display:flex;gap:12px;justify-content:center;align-items:center;margin-top:12px}
+.pm button{width:74px;height:74px;border-radius:50%;border:2px solid var(--line);background:#fff;
+           font-size:34px;color:var(--ink);display:flex;align-items:center;justify-content:center;line-height:1}
+.pm button:active{background:#e6ebf0}
+.pm input{width:132px;height:96px;text-align:center;font-family:var(--mono);font-size:46px;font-weight:700;
+          border:2px solid var(--marine);border-radius:12px;background:#fff;color:var(--ink)}
+.pm input.same{border-color:var(--line)}
+.cmp{margin-top:12px;display:flex;gap:14px;justify-content:center;align-items:baseline;flex-wrap:wrap}
+.tmsay{font-size:14px;color:var(--steel)}
+.tmsay b{font-family:var(--mono);font-size:16px;color:var(--ink)}
+.delta{font-family:var(--mono);font-size:15px;font-weight:700}
+.delta.up{color:var(--ok)} .delta.dn{color:var(--stop)} .delta.zero{color:var(--faint);font-weight:500}
+
+/* flags */
+.flag{padding:11px 14px;font-size:13.5px;display:flex;gap:9px;align-items:flex-start;border-bottom:1px solid var(--line)}
+.flag .ic{font-family:var(--mono);font-weight:700;font-size:12px;margin-top:1px}
+.flag.warn{background:var(--signal-bg);color:#6f3206} .flag.warn .ic{color:var(--signal)}
+.flag.good{background:var(--ok-bg);color:#0a4a36} .flag.good .ic{color:var(--ok)}
+.flag.bad{background:var(--stop-bg);color:#6d1a17} .flag.bad .ic{color:var(--stop)}
+
+/* dock */
+.dock{position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--card);border-top:1px solid var(--line);
+      box-shadow:0 -6px 18px rgba(16,21,25,.09);padding:11px 12px calc(11px + env(safe-area-inset-bottom))}
+.dock.hide{display:none}
+@media(min-width:760px){.dock{position:static;box-shadow:none;border:0;background:none;padding:0 14px 30px}}
+.dockrow{display:flex;gap:9px;max-width:1180px;margin:0 auto}
+.big{height:60px;border:0;border-radius:11px;font-weight:700;font-size:17px;padding:0 18px;
+     display:flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap}
+.big.grey{background:#e6ebf0;color:var(--ink);flex:0 0 auto;min-width:78px;padding:0 12px}
+.big.scanb{background:var(--marine);color:#fff;flex:1;letter-spacing:.1em}
+.big.scanb svg{width:23px;height:23px}
+.big.okc{background:var(--ok);color:#fff;flex:1}
+.big.save{background:var(--marine);color:#fff;flex:1}
+.dockhint{max-width:1180px;margin:8px auto 0;font-size:12px;color:var(--faint);text-align:center;line-height:1.4}
+
+/* tables */
+.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
+.tbl th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);
+        font-weight:700;padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+.tbl td{padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+.tbl tr:last-child td{border-bottom:0}
+.m{font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums}
+.pos{color:var(--ok);font-weight:700} .neg{color:var(--stop);font-weight:700}
+.scroll{overflow-x:auto;max-width:100%}
+.grp.gprint{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.pbtn{border:1.5px solid var(--line);background:#fff;color:var(--marine);border-radius:7px;
+      padding:7px 12px;font-size:12.5px;font-weight:600;text-transform:none;letter-spacing:0}
+.entry{border-bottom:1px solid var(--line);padding:12px 14px}
+.entry:last-child{border-bottom:0}
+.etop{display:flex;gap:12px;align-items:flex-start}
+.entry .txt{flex:1;min-width:0}
+.entry .t1{font-size:15px;font-weight:600;line-height:1.25}
+.entry .t2{font-family:var(--mono);font-size:11.5px;color:var(--faint);margin-top:2px;word-break:break-word}
+.entry .q{font-family:var(--mono);font-size:24px;font-weight:700;flex:0 0 auto}
+.ebtn{display:flex;gap:0;flex-wrap:wrap;margin-top:9px}
+.state{display:inline-block;font-family:var(--mono);font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;padding:3px 6px;border-radius:3px}
+.state.open{background:var(--signal-bg);color:var(--signal)}
+.state.closed{background:var(--ok-bg);color:var(--ok)}
+
+/* import */
+#pasteBox{width:100%;height:170px;border:2px solid var(--line);border-radius:9px;padding:11px;
+          font-family:var(--mono);font-size:12.5px;resize:vertical;line-height:1.5}
+#pasteBox:focus{outline:none;border-color:var(--marine)}
+.nameIn{width:100%;padding:13px;border:2px solid var(--line);border-radius:9px;margin-top:10px}
+.statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(126px,1fr));gap:1px;background:var(--line);
+          border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.stat{background:#fff;padding:13px}
+.stat b{display:block;font-family:var(--mono);font-size:25px;font-weight:700;line-height:1.1}
+.stat span{font-size:11.5px;color:var(--steel)}
+.stat.new b{color:var(--marine)} .stat.warn b{color:var(--signal)} .stat.keep b{color:var(--ok)}
+
+/* gate */
+.gate{position:fixed;inset:0;background:var(--ink);z-index:90;display:flex;align-items:center;justify-content:center;padding:20px}
+.gate .box{width:100%;max-width:380px}
+.gate h1{color:#fff;font-size:20px;margin:0 0 4px}
+.gate p{color:#8fa6bd;font-size:13.5px;margin:0 0 22px}
+.gate .u{display:flex;align-items:center;gap:12px;width:100%;background:#1b242d;border:1px solid #2b3742;
+         color:#fff;border-radius:9px;padding:15px;margin-bottom:9px;text-align:left}
+.gate .av{width:36px;height:36px;border-radius:50%;background:var(--marine);display:flex;align-items:center;
+          justify-content:center;font-family:var(--mono);font-size:13px;font-weight:700;flex:0 0 36px}
+.gate .un{font-weight:600;font-size:15.5px}
+.gate .ur{font-size:12px;color:#8fa6bd}
+.gi{width:100%;padding:14px;border-radius:9px;border:1px solid #2b3742;background:#111a22;color:#fff;
+    font-size:16px;margin-bottom:9px}
+.gi:focus{outline:none;border-color:var(--marine)}
+.gi::placeholder{color:#5f7183}
+.gate .u.ship .un{font-weight:600;font-size:15px}
+.gate .u.ship{padding:13px 15px}
+.whoPos{color:#8fa6bd;font-size:13.5px;margin:0 0 14px!important;line-height:1.5}
+.whoPos b{color:#fff}
+.gerr{color:#ff9a92;font-size:13px;min-height:18px;line-height:1.4}
+.galt{display:flex;justify-content:space-between;margin-top:12px}
+.note{background:#1b242d;border-left:3px solid var(--signal);color:#a9bccf;font-size:12px;
+      padding:10px 12px;border-radius:0 4px 4px 0;margin-top:18px;line-height:1.5}
+
+.ask{position:fixed;inset:0;background:rgba(16,21,25,.55);z-index:95;display:none;align-items:center;justify-content:center;padding:22px}
+.ask.on{display:flex}
+.askbox{background:#fff;border-radius:13px;padding:20px;max-width:380px;width:100%}
+.askbox h3{margin:0 0 6px;font-size:17px}
+.askbox p{margin:0 0 18px;font-size:14px;color:var(--steel);line-height:1.5}
+.askrow{display:flex;gap:9px}
+.toast{position:fixed;left:50%;bottom:calc(var(--dock) + 12px);transform:translate(-50%,60px);background:var(--ink);
+       color:#fff;padding:13px 20px;border-radius:9px;font-size:14.5px;font-weight:500;z-index:80;opacity:0;
+       transition:.2s;pointer-events:none;max-width:90vw;text-align:center}
+.toast.on{transform:translate(-50%,0);opacity:1}
+@media (prefers-reduced-motion:reduce){.toast{transition:none}}
+
+/* photo + scan */
+.photoRow{display:flex;gap:8px;padding:0 14px 8px;flex-wrap:wrap}
+.hint{padding:0 14px 14px;font-size:12.5px;color:var(--faint);line-height:1.45}
+.pill{border:1.5px solid var(--line);background:#fff;border-radius:9px;padding:11px 14px;
+      font-size:14px;font-weight:600;color:var(--marine);display:flex;align-items:center;gap:7px}
+.pill.has{border-color:var(--ok);color:var(--ok)}
+.thumb{margin:0 14px 13px;border-radius:9px;overflow:hidden;border:1px solid var(--line);position:relative}
+.thumb img{display:block;width:100%;max-height:230px;object-fit:cover}
+.thumb .x{position:absolute;top:8px;right:8px;background:rgba(16,21,25,.72);color:#fff;border:0;
+          border-radius:50%;width:32px;height:32px;font-size:17px;line-height:1}
+.codetag{margin:0 14px 13px;font-family:var(--mono);font-size:12px;color:var(--ok);
+         background:var(--ok-bg);border-radius:7px;padding:8px 11px;display:flex;justify-content:space-between;gap:8px}
+.codetag button{border:0;background:none;color:var(--stop);font-size:12px;text-decoration:underline;flex:0 0 auto;align-self:flex-start}
+.codetag small{font-size:10.5px;opacity:.85;letter-spacing:.02em}
+.codetag.bad{background:var(--stop-bg);color:#6d1a17}
+.scanview{position:fixed;inset:0;background:#000;z-index:98;display:none;flex-direction:column}
+.scanview.on{display:flex}
+.svtop{color:#fff;padding:14px;display:flex;justify-content:space-between;align-items:center;font-size:14px;gap:10px}
+.svbox{flex:1;position:relative;overflow:hidden}
+.svbox video{width:100%;height:100%;object-fit:cover}
+.svframe{position:absolute;left:12%;right:12%;top:26%;height:34%;border:3px solid #fff;
+         border-radius:14px;box-shadow:0 0 0 100vmax rgba(0,0,0,.45)}
+
+/* ---------- print ---------- */
+#printArea{display:none}
+@media print{
+  @page{size:A4 portrait;margin:14mm 12mm}
+  body{background:#fff;font-size:10pt}
+  header.top,nav.tabs,.dock,.wrap,.ask,.toast,.gate{display:none!important}
+  #printArea{display:block}
+  .psheet{page-break-after:always}
+  .psheet:last-child{page-break-after:auto}
+  .phd{border-bottom:2px solid #000;padding-bottom:6pt;margin-bottom:10pt}
+  .phd h1{font-size:14pt;margin:0 0 3pt;letter-spacing:.02em}
+  .phd .pmeta{font-size:9pt;color:#333;display:flex;flex-wrap:wrap;gap:14pt}
+  .phd .pmeta b{font-weight:600}
+  table.pt{width:100%;border-collapse:collapse;font-size:9pt}
+  table.pt th{text-align:left;border-bottom:1.2pt solid #000;padding:4pt 3pt;font-size:8pt;
+              text-transform:uppercase;letter-spacing:.05em}
+  table.pt td{border-bottom:.5pt solid #bbb;padding:5pt 3pt;vertical-align:top}
+  table.pt tr{page-break-inside:avoid}
+  .pnum{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .pbox{border:1pt solid #000;height:16pt;width:46pt;display:block}
+  .ploc{font-size:7.5pt;color:#444;word-break:break-all}
+  .pgrp{font-size:9.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+        padding:8pt 0 3pt;border-bottom:1.2pt solid #000;margin-top:12pt}
+  .psig{margin-top:16pt;display:flex;gap:30pt;font-size:9pt}
+  .psig div{flex:1;border-top:.8pt solid #000;padding-top:4pt}
+  .pfoot{margin-top:8pt;font-size:8pt;color:#555}
+}
+</style>
+</head>
+<body>
+
+<div class="gate" id="gate">
+  <div class="box">
+    <h1 id="gTitle">Control count</h1>
+    <p id="gSub">Sign in — every count is recorded against your name.</p>
+
+    <div id="gForm">
+      <input class="gi" id="gName" placeholder="Your full name" autocomplete="name" style="display:none">
+      <input class="gi" id="gEmail" type="email" placeholder="Email" autocomplete="email" autocapitalize="none">
+      <input class="gi" id="gPass" type="password" placeholder="Password" autocomplete="current-password">
+      <div class="gerr" id="gErr"></div>
+      <button class="btn wide" id="gGo" style="margin-top:10px">Sign in</button>
+      <div class="galt">
+        <button class="linkbtn" id="gSwap">Create an account</button>
+        <button class="linkbtn" id="gReset">Forgot password</button>
+      </div>
+    </div>
+
+    <div id="gShip" style="display:none">
+      <div id="shipList"></div>
+      <div class="galt"><button class="linkbtn" id="gShipOut">Sign out</button></div>
+    </div>
+
+    <div id="gWho" style="display:none">
+      <p class="whoPos" id="gWhoPos"></p>
+      <input class="gi" id="gWhoName" placeholder="Your name" autocomplete="name">
+      <button class="btn wide" id="gWhoGo" style="margin-top:6px">Start counting</button>
+      <div class="galt"><button class="linkbtn" id="gWhoOut">Sign out</button></div>
+    </div>
+
+    <div id="gWait" style="display:none">
+      <div class="note" id="gWaitMsg"></div>
+      <button class="btn ghost wide" style="margin-top:14px" id="gOut">Sign out</button>
+    </div>
+
+    <div class="note" id="gNote">Accounts are approved by a System Admin before they can be used.</div>
+  </div>
+</div>
+
+<header class="top">
+  <button class="brandmark shipbtn" id="shipBtn"><b>COUNT</b>&nbsp; <span id="vName"></span> <span class="caret">▾</span></button>
+  <div class="who"><span id="whoName"></span><span class="chip" id="whoRole"></span>
+    <button class="linkbtn" onclick="signOut()">Sign out</button></div>
+</header>
+
+<nav class="tabs">
+  <button data-p="run" class="on" onclick="tab('run')">Count</button>
+  <button data-p="imp" data-desk="1" onclick="tab('imp')">New list</button>
+  <button data-p="tm" data-desk="1" onclick="tab('tm')">Enter in TM</button>
   <button data-p="hist" onclick="tab('hist')">History</button>
 </nav>
 
