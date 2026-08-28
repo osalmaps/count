@@ -297,7 +297,7 @@ h2{font-size:15px;margin:0 0 3px}
       <button class="btn ghost wide" style="margin-top:14px" id="gOut">Sign out</button>
     </div>
 
-    <div class="note" id="gNote">Accounts are approved by the Chief Electrician before they can be used.</div>
+    <div class="note" id="gNote">Accounts are approved by a System Admin before they can be used.</div>
   </div>
 </div>
 
@@ -1033,7 +1033,7 @@ function paintGate(){
   const up=mode==='up';
   $('gName').style.display=up?'block':'none';
   $('gTitle').textContent=up?'Create an account':'Control count';
-  $('gSub').textContent=up?'An admin approves the account before it can be used.'
+  $('gSub').textContent=up?'A System Admin approves the account before it can be used.'
                           :'Sign in — every count is recorded against your name.';
   $('gGo').textContent=up?'Create account':'Sign in';
   $('gSwap').textContent=up?'I already have an account':'Create an account';
@@ -1115,10 +1115,10 @@ onAuthStateChanged(auth,async u=>{
   try{snap=await getDoc(doc(db,'users',u.uid));}catch(e){showGate('wait','Cannot reach the database. Check the connection.');return;}
   if(!snap.exists()){
     await setDoc(doc(db,'users',u.uid),{name:u.displayName||u.email,email:u.email,role:'pending',createdAt:serverTimestamp()});
-    showGate('wait','Account created. An admin must approve it before you can count.');return;
+    showGate('wait','Account created. A System Admin must approve it before you can count.');return;
   }
   const d=snap.data();
-  if(d.role==='pending'){showGate('wait','Waiting for an admin to approve this account.');return;}
+  if(d.role==='pending'){showGate('wait','Waiting for a System Admin to approve this account.');return;}
   if(d.role==='blocked'){showGate('wait','This account has been blocked.');return;}
   const pos=(d.kind==='position')?(d.position||'Shared account'):null;
   if(pos){
