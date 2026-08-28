@@ -25,6 +25,9 @@ input,select,textarea{font-family:inherit;font-size:16px}
 header.top{background:var(--ink);color:#fff;height:var(--hdr);padding:0 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:40}
 .brandmark{font-family:var(--mono);font-size:12px;letter-spacing:.16em;color:#8fa6bd;text-transform:uppercase}
 .brandmark b{color:#fff;font-weight:600}
+.shipbtn{background:none;border:0;padding:6px 0;display:flex;align-items:center;gap:4px;
+         font-family:var(--mono);font-size:12px;letter-spacing:.16em;color:#8fa6bd;text-transform:uppercase}
+.shipbtn .caret{font-size:10px;letter-spacing:0}
 .who{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px}
 .chip{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:3px 7px;border-radius:3px;background:#26313c;color:#c3d2e0}
 .chip.admin{background:var(--signal);color:#fff}
@@ -127,7 +130,7 @@ h2{font-size:15px;margin:0 0 3px}
 .dockrow{display:flex;gap:9px;max-width:1180px;margin:0 auto}
 .big{height:60px;border:0;border-radius:11px;font-weight:700;font-size:17px;padding:0 18px;
      display:flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap}
-.big.grey{background:#e6ebf0;color:var(--ink);flex:0 0 auto;min-width:92px}
+.big.grey{background:#e6ebf0;color:var(--ink);flex:0 0 auto;min-width:78px;padding:0 12px}
 .big.scanb{background:var(--marine);color:#fff;flex:1;letter-spacing:.1em}
 .big.scanb svg{width:23px;height:23px}
 .big.okc{background:var(--ok);color:#fff;flex:1}
@@ -181,6 +184,16 @@ h2{font-size:15px;margin:0 0 3px}
           justify-content:center;font-family:var(--mono);font-size:13px;font-weight:700;flex:0 0 36px}
 .gate .un{font-weight:600;font-size:15.5px}
 .gate .ur{font-size:12px;color:#8fa6bd}
+.gi{width:100%;padding:14px;border-radius:9px;border:1px solid #2b3742;background:#111a22;color:#fff;
+    font-size:16px;margin-bottom:9px}
+.gi:focus{outline:none;border-color:var(--marine)}
+.gi::placeholder{color:#5f7183}
+.gate .u.ship .un{font-weight:600;font-size:15px}
+.gate .u.ship{padding:13px 15px}
+.whoPos{color:#8fa6bd;font-size:13.5px;margin:0 0 14px!important;line-height:1.5}
+.whoPos b{color:#fff}
+.gerr{color:#ff9a92;font-size:13px;min-height:18px;line-height:1.4}
+.galt{display:flex;justify-content:space-between;margin-top:12px}
 .note{background:#1b242d;border-left:3px solid var(--signal);color:#a9bccf;font-size:12px;
       padding:10px 12px;border-radius:0 4px 4px 0;margin-top:18px;line-height:1.5}
 
@@ -208,7 +221,9 @@ h2{font-size:15px;margin:0 0 3px}
           border-radius:50%;width:32px;height:32px;font-size:17px;line-height:1}
 .codetag{margin:0 14px 13px;font-family:var(--mono);font-size:12px;color:var(--ok);
          background:var(--ok-bg);border-radius:7px;padding:8px 11px;display:flex;justify-content:space-between;gap:8px}
-.codetag button{border:0;background:none;color:var(--stop);font-size:12px;text-decoration:underline}
+.codetag button{border:0;background:none;color:var(--stop);font-size:12px;text-decoration:underline;flex:0 0 auto;align-self:flex-start}
+.codetag small{font-size:10.5px;opacity:.85;letter-spacing:.02em}
+.codetag.bad{background:var(--stop-bg);color:#6d1a17}
 .scanview{position:fixed;inset:0;background:#000;z-index:98;display:none;flex-direction:column}
 .scanview.on{display:flex}
 .svtop{color:#fff;padding:14px;display:flex;justify-content:space-between;align-items:center;font-size:14px;gap:10px}
@@ -250,15 +265,44 @@ h2{font-size:15px;margin:0 0 3px}
 
 <div class="gate" id="gate">
   <div class="box">
-    <h1>Control count</h1>
-    <p>Sign in — every count is recorded against your name.</p>
-    <div id="users"></div>
-    <div class="note">Prototype. Data lives in this page only — reload and it is gone.</div>
+    <h1 id="gTitle">Control count</h1>
+    <p id="gSub">Sign in — every count is recorded against your name.</p>
+
+    <div id="gForm">
+      <input class="gi" id="gName" placeholder="Your full name" autocomplete="name" style="display:none">
+      <input class="gi" id="gEmail" type="email" placeholder="Email" autocomplete="email" autocapitalize="none">
+      <input class="gi" id="gPass" type="password" placeholder="Password" autocomplete="current-password">
+      <div class="gerr" id="gErr"></div>
+      <button class="btn wide" id="gGo" style="margin-top:10px">Sign in</button>
+      <div class="galt">
+        <button class="linkbtn" id="gSwap">Create an account</button>
+        <button class="linkbtn" id="gReset">Forgot password</button>
+      </div>
+    </div>
+
+    <div id="gShip" style="display:none">
+      <div id="shipList"></div>
+      <div class="galt"><button class="linkbtn" id="gShipOut">Sign out</button></div>
+    </div>
+
+    <div id="gWho" style="display:none">
+      <p class="whoPos" id="gWhoPos"></p>
+      <input class="gi" id="gWhoName" placeholder="Your name" autocomplete="name">
+      <button class="btn wide" id="gWhoGo" style="margin-top:6px">Start counting</button>
+      <div class="galt"><button class="linkbtn" id="gWhoOut">Sign out</button></div>
+    </div>
+
+    <div id="gWait" style="display:none">
+      <div class="note" id="gWaitMsg"></div>
+      <button class="btn ghost wide" style="margin-top:14px" id="gOut">Sign out</button>
+    </div>
+
+    <div class="note" id="gNote">Accounts are approved by the Chief Electrician before they can be used.</div>
   </div>
 </div>
 
 <header class="top">
-  <div class="brandmark"><b>COUNT</b>&nbsp; AE</div>
+  <button class="brandmark shipbtn" id="shipBtn"><b>COUNT</b>&nbsp; <span id="vName"></span> <span class="caret">▾</span></button>
   <div class="who"><span id="whoName"></span><span class="chip" id="whoRole"></span>
     <button class="linkbtn" onclick="signOut()">Sign out</button></div>
 </header>
@@ -294,6 +338,12 @@ h2{font-size:15px;margin:0 0 3px}
     <div id="tmOut"></div>
   </section>
 
+  <section class="pane" id="p-adm">
+    <h2>Crew and activity</h2>
+    <p class="sub">Approve new accounts, and see who did what.</p>
+    <div id="admOut"></div>
+  </section>
+
   <section class="pane" id="p-hist">
     <h2>History</h2>
     <p class="sub">Every list counted, and what happened to it.</p>
@@ -317,17 +367,43 @@ h2{font-size:15px;margin:0 0 3px}
 </div></div>
 <div class="toast" id="toast"></div>
 
-<script>
+<script type="module">
+import {initializeApp} from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js';
+import {getAuth,createUserWithEmailAndPassword,signInWithEmailAndPassword,signOut as fbSignOut,
+        onAuthStateChanged,sendEmailVerification,sendPasswordResetEmail,updateProfile}
+  from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js';
+import {initializeFirestore,persistentLocalCache,persistentMultipleTabManager,
+        doc,getDoc,setDoc,updateDoc,deleteDoc,collection,getDocs,addDoc,query,where,orderBy,limit,serverTimestamp}
+  from 'https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js';
+
+const fb=initializeApp({
+  apiKey:"AIzaSyDSSxfBo3OiobqXz5x_gcAb5BmN5JqmscE",
+  authDomain:"ae-stock-count.firebaseapp.com",
+  projectId:"ae-stock-count",
+  storageBucket:"ae-stock-count.firebasestorage.app",
+  messagingSenderId:"1067500048540",
+  appId:"1:1067500048540:web:d425597a48a4581ffcdd59"
+});
+const auth=getAuth(fb);
+const db=initializeFirestore(fb,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})});
+
+const VESSELS=['Antarctic Endurance','Antarctic Enabler','Antarctic Navigator',
+               'Antarctic Provider','Antarctic Sea','Saga Sea'];
+const SHORT={'Antarctic Endurance':'AE','Antarctic Enabler':'AEN','Antarctic Navigator':'ANV',
+             'Antarctic Provider':'APR','Antarctic Sea':'ASE','Saga Sea':'SAG'};
+const vid=v=>v.replace(/[^A-Za-z0-9]/g,'_');
+/* every vessel keeps its own lists, memory, codes and photos */
+const vcol=(...p)=>collection(db,'vessels',vid(me.vessel),...p);
+const vdoc=(...p)=>doc(db,'vessels',vid(me.vessel),...p);
 const DEMO="In Stock\tOnOrder\tOn Draft\tName\tMaker's Type\tMakers Part No\tDefault location\tMaker\tSpecification\tPrice in unit currency\tItem Type\tCurrency\tEst. Delivery Days\tMin Qty\tMax Qty\tStockTag\tSupplier\tSupplier's Ref\tReview MinMax\tTM Item No\tItem Category\tValidated\tHS Code\tHS Description\tControlled Goods\tMaterial Group\tConsumption 2026\tConsumption 2025\tConsumption 2024\tHas critical occurences\tLast Known Price\tLast Known Price Date\tUnit Specific Remarks\tQty In Use\tDangerous Goods\tDangerous Goods Class\tIHM Status\tBlocked\n\t500\t0\tSpring Washer for M8 bolt - Stainless\tSpring Washer\t\tEL\\EL SHOP\\ELC3\\S8\\4\t\tSpring Washer for M8 bolt - Stainless\t\tSpare part\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t0\t0\t0\t\t\t2026-03-26\t\t0\t\t\t\t\n\t\t\tUHF Marine Antenna \tUHF Antenna with 30m Cable\t\tEL\\Rapp/Factory SWB Room\t\t\t\tSpare part\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t0\t0\t0\t\t\t\t\t\t\t\t\t\n1\t0\t0\tGROUND RELAY START 129100-77910\t\t129100-77910\tEL\\4117 New room Across EL shop\\4\\1\\B1\t\t129100-77910\t\tSpare part\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t0\t0\t0\t\t\t2025-01-28\t\t0\t\t\t\t\n7\t\t\tCapacitor 4uF CBB60\t\tCBB60\tEL\\EL SHOP\\ELC2\\S2\\4\t\tCapacitor 4uF CBB60\t\tSpare part\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t0\t0\t0\t\t\t\t\t0\t\t\t\t\n1\t0\t0\tCJ1W-DRM21\t\t\tEL\\EL Ship Store\\ELC2\\SH2\\Box1\t\tDeviceNet master and slave unit for CJ PLS\t    933.67 USD\tSpare part\tUSD\t0\t0\t0\t\tControl Solutions AS\t\t\t\t\tX\t0\t\t\t\t0\t0\t0\t\t    933.67 USD\t2023-03-30\t\t0\t\t\t\t\n0\t0\t0\tHDMI Cable 10 meter\t\tHDMI Cable 10 meter\tEL\\B-deck fwd. port side \\Data\t\t\t\tSpare part\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t3\t0\t0\t\t\t2022-10-19\t\t0\t\t\t\t\n\t1000\t0\tMetal Screw - Wafer Head - Self Tapping - 1 inch - Stainless\tSelf Tapping Screw\t\tEL\\EL SHOP\\ELC3\\S8\\3\t\t1 inch - Stainless\t\tSpare part\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t0\t0\t0\t\t\t2026-06-16\t\t0\t\t\t\t\n796\t0\t0\tNetwork cable CAT7 \t\t CAT7 DNV Marine Approved\tEL\\Boiler Room Cables\t\t\t\tSpare part\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t0\t204\t1380\t\t\t2024-10-05\t\t0\t\t\t\t\n1\t0\t0\tYanmar - Temp Probe - 144626-91590\tTemperature Switch\t144626-91590\tEL\\4117 New room Across EL shop\\4\\1\\B1\t\t144626-91590 Temperature switch for Yanmar 6LYA-STP\t\tSpare part\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t0\t0\t0\t\t\t2025-01-28\t\t0\t\t\t\t\n\t0\t0\tEthernet Cable (Patch) 1,5meter\t\t1.5m Cat5e,RJ45 Ethernet cable (patch)\tEL\\B-deck fwd. port side \\Data\t\t\t\tSpare part\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t0\t0\t0\t\t\t\t\t0\t\t\t\t\n5\t0\t0\tCable Glands Reducer (M63-M32)\tPolyamide, Gray\tG6633200\tEL\\EL SHOP\\ELC1\\S05\\4\t\thttps://www.sibadr.fr/en/produit/reducer-plastic-gray-m63-m32/\t\tSpare part\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t0\t0\t0\t\t\t2023-04-17\t\t0\t\t\t\t\n200\t\t\tButt Wire Connector\t\t\tEL\\EL SHOP\\ELC3\\S7\\1\t\t\t\tSpare part\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t0\t0\t0\t\t\t\t\t\t\t\t\t\n0\t\t\tMiniature Circuit Breaker IC60N, 1P, 0.5A, C\t\t\tEL\\Hall Aft. Main Deck\\ELC1\\S4\\1\t\t\t\tSpare part\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t0\t0\t0\t\t\t\t\t0\t\t\t\t\n0\t0\t0\tDVI Extension Cable Female to Female 10M\tGold Line\t\tEL\\B-deck fwd. port side \\Data\t\t\t\tSpare part\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t2\t0\t0\t\t\t2021-03-04\t\t\t\t\t\t";
 const DEMO2=DEMO;
-const USERS=[{id:'pt',name:'Peter',role:'admin',init:'PT'},{id:'rf',name:'Rolf',role:'admin',init:'RF'},
-             {id:'em',name:'Emil',role:'user',init:'EM'},{id:'ab',name:'AB Deck',role:'user',init:'AB'}];
-let me=null;
+let me=null;   /* {uid,name,email,role} */
 
 /* ---------- state ---------- */
 let SESSIONS=[];          /* {id,name,at,by,state,items:[]} */
 let MEMORY={};            /* fp -> {n,p,lastCounted,lastBase,lastAt,lastBy,lastSession} */
-let seq=1, openSid=null, cur=null, counted=0, finishOk=false, curTab='run', tmIdx=0;
+let CODES=[], USERS=[], EVENTS=[];
+let seq=1, openSid=null, cur=null, counted=0, finishOk=false, curTab='run', tmIdx=0, booting=true;
 
 const now=()=>new Date();
 const hhmm=d=>new Date(d).toLocaleString([],{month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'});
@@ -415,15 +491,25 @@ function guessName(rows){
   const top=Object.keys(c).sort((a,b)=>c[b]-c[a])[0];
   return top?top.split('\\').slice(-2).join(' / '):'Count '+dayOf(now());
 }
-function startSession(){
+async function startSession(){
   if(!impRows)return;
-  const s={id:seq++,name:impName,at:now(),by:me.name,state:'open',
-           items:impRows.map(r=>({fp:r.fp,n:r.n,p:r.p,l:r.l,base:r.base,counted:null,by:null,at:null,loop:r.loop}))};
-  SESSIONS.unshift(s);openSid=s.id;
-  document.getElementById('pasteBox').value='';document.getElementById('listName').value='';
-  document.getElementById('impOut').innerHTML='';
-  toast(s.items.length+' items ready to count');
-  tab('run');render();
+  const btn=document.querySelector('#dock .big.save'); if(btn)btn.disabled=true;
+  try{
+    const ref=await addDoc(vcol('sessions'),
+      {name:impName,at:serverTimestamp(),by:me.name,byUid:me.uid,state:'open',
+       total:impRows.length,done:0,changed:0});
+    const items=impRows.map((r,i)=>({fp:r.fp,n:r.n,p:r.p||'',l:r.l||'',base:r.base,
+                                     counted:null,by:null,at:null,loop:r.loop||null,ord:i}));
+    for(const it of items) await setDoc(vdoc('sessions',ref.id,'items',fpKey(it.fp)),it);
+    const s2={id:ref.id,name:impName,at:new Date(),by:me.name,byUid:me.uid,state:'open',
+              total:items.length,done:0,changed:0,items:items.map(x=>({...x,key:fpKey(x.fp)}))};
+    SESSIONS.unshift(s2);openSid=s2.id;
+    logEvent('created list',{list:impName,n:items.length});
+    clearImport();
+    toast(items.length+' items ready to count');
+    tab('run');render();renderHist();
+  }catch(e){toast('Could not save: '+e.code);}
+  if(btn)btn.disabled=false;
 }
 
 /* ---------- counting ---------- */
@@ -434,11 +520,12 @@ function render(){
   if(!openSid||!sess(openSid)||sess(openSid).state!=='open'){
     out.innerHTML=open.length?`
       <h2>Lists to count</h2><p class="sub">Pick one, then work down it.</p>
-      ${open.map(s=>{const d=s.items.filter(i=>i.counted!==null).length;return `
-      <div class="card"><div class="row" onclick="openSid=${s.id};render()">
+      ${open.map(s=>{const d=s.items?s.items.filter(i=>i.counted!==null).length:(s.done||0),
+                      t=s.items?s.items.length:(s.total||0);return `
+      <div class="card"><div class="row" onclick="openList('${s.id}')">
         <div class="txt"><div class="t1">${esc(s.name)}</div>
-        <div class="t2">${dayOf(s.at)} · ${s.by} · ${d} of ${s.items.length} counted</div></div>
-        <div class="q">${s.items.length}</div><button class="go">Open</button></div></div>`;}).join('')}`
+        <div class="t2">${dayOf(s.at)} · ${s.by} · ${d} of ${t} counted</div></div>
+        <div class="q">${t}</div><button class="go">Open</button></div></div>`;}).join('')}`
       :`<div class="card"><div class="empty">No list to count.<br>Paste one from TM on the PC first.</div></div>`;
     dock();return;
   }
@@ -461,7 +548,14 @@ function render(){
   </div>`;
   dock();
 }
-function pick(n){cur=n;counted=sess(openSid).items[n].counted!==null?sess(openSid).items[n].counted:sess(openSid).items[n].base;renderItem();window.scrollTo(0,0);}
+function pick(n){const it=sess(openSid).items[n];cur=n;
+  counted=it.counted!==null?it.counted:it.base;renderItem();window.scrollTo(0,0);}
+window.openList=async id=>{
+  const s=sess(id); if(!s)return;
+  openSid=id;
+  if(!s.items){toast('Loading…');await loadItems(s);}
+  render();
+};
 function renderItem(){
   const s=sess(openSid),it=s.items[cur],f=[];
   if(it.loop==='out')f.push(`<div class="flag bad"><span class="ic">!</span><div>Counted <b>${MEMORY[it.fp].lastCounted}</b> on ${dayOf(MEMORY[it.fp].lastAt)} but TM still shows <b>${it.base}</b>. That correction was never entered.</div></div>`);
@@ -488,7 +582,9 @@ function renderItem(){
       <div class="cmp"><span class="tmsay">TM says <b>${it.base}</b></span><span class="delta" id="qDelta"></span></div>
     </div>
     ${it.photo?`<div class="thumb"><img src="${it.photo}" alt=""><button class="x" onclick="dropPhoto()">×</button></div>`:''}
-    ${it.code?`<div class="codetag"><span>${esc(it.code)} · ${esc(it.sym||'')}</span><button onclick="dropCode()">remove</button></div>`:''}
+    ${it.code?(()=>{const k=codeKind(it.code,it.sym),ci=codeInfo(it.code,it.sym);return `<div class="codetag ${k.cls}">
+      <div><div class="ctc">${esc(it.code)}</div><div class="ctl">${esc(ci.label)} · ${esc(k.lab)}</div></div>
+      <button onclick="dropCode()">remove</button></div>`;})():''}
     <div class="photoRow">
       <button class="pill ${it.photo?'has':''}" onclick="takePhoto()">${it.photo?'✓ Photo':'📷 Add photo'}</button>
       <button class="pill ${it.code?'has':''}" onclick="startScan('link')">${it.code?'✓ Barcode':'▊ Link barcode'}</button>
@@ -509,12 +605,22 @@ function setCount(v){
   el.className='delta '+(d>0?'up':d<0?'dn':'zero');
   dock();
 }
-function save(){
-  const it=sess(openSid).items[cur];
-  it.counted=counted;it.by=me.name;it.at=now();
+async function save(){
+  const s=sess(openSid), it=s.items[cur], was=it.counted;
+  it.counted=counted;it.by=me.name;it.at=new Date();
+  const n=cur; cur=null; render();
   toast(counted===it.base?`${counted} — confirmed`:`Counted ${counted}`);
-  cur=null;render();
+  try{
+    await updateDoc(vdoc('sessions',s.id,'items',it.key||fpKey(it.fp)),
+      {counted,by:me.name,uid:me.uid,at:serverTimestamp()});
+    s.done=s.items.filter(i=>i.counted!==null).length;
+    s.changed=s.items.filter(i=>i.counted!==null&&i.counted!==i.base).length;
+    await updateDoc(vdoc('sessions',s.id),{done:s.done,changed:s.changed});
+    logEvent(was===null?'counted':'recounted',
+      {list:s.name,item:it.n,counted,tm:it.base,was});
+  }catch(e){toast('Not saved: '+e.code);it.counted=was;render();}
 }
+
 function finish(){
   const s=sess(openSid);
   const miss=s.items.filter(i=>i.counted===null).length;
@@ -526,8 +632,16 @@ function finish(){
   }
   finishOk=false;
   s.state='closed';s.closedAt=now();s.missed=miss;
-  s.items.filter(i=>i.counted!==null).forEach(i=>{MEMORY[i.fp]={n:i.n,p:i.p,lastCounted:i.counted,lastBase:i.base,
-                                    lastAt:i.at||now(),lastBy:i.by||me.name,lastSession:s.id};});
+  updateDoc(vdoc('sessions',s.id),{state:'closed',closedAt:serverTimestamp(),missed:miss})
+    .catch(e=>toast('Not saved: '+e.code));
+  logEvent('finished list',{list:s.name,counted:s.items.filter(i=>i.counted!==null).length,missed:miss});
+  s.items.filter(i=>i.counted!==null).forEach(i=>{
+    MEMORY[i.fp]={n:i.n,p:i.p,lastCounted:i.counted,lastBase:i.base,
+                  lastAt:i.at||now(),lastBy:i.by||me.name,lastSession:s.id};
+    setDoc(vdoc('memory',fpKey(i.fp)),
+      {n:i.n,p:i.p||'',lastCounted:i.counted,lastBase:i.base,
+       lastAt:serverTimestamp(),lastBy:i.by||me.name,lastSession:s.id}).catch(()=>{});
+  });
   const diff=s.items.filter(i=>i.counted!==null&&i.counted!==i.base).length;
   toast(diff?`Finished — ${diff} to enter in TM`:'Finished — everything matched');
   openSid=null;cur=null;render();renderTm();renderHist();
@@ -557,13 +671,25 @@ function dock(){
     </div>`;
     return;
   }
+  if(curTab==='adm'){renderAdmin();d.className='dock hide';d.innerHTML='';return;}
   if(curTab!=='run'){d.className='dock hide';d.innerHTML='';return;}
   const s=openSid?sess(openSid):null;
-  if(!s||s.state!=='open'){d.className='dock hide';d.innerHTML='';return;}
+  if(!s||s.state!=='open'){
+    const open=SESSIONS.filter(x=>x.state==='open');
+    if(!open.length){d.className='dock hide';d.innerHTML='';return;}
+    d.className='dock';
+    d.innerHTML=`<div class="dockrow"><button class="big save" onclick="startScan('any')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
+           style="width:24px;height:24px"><path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M3 12h18"/></svg>
+      SCAN to find an item</button></div>
+    <div class="dockhint">Searches every list you have open.</div>`;
+    return;
+  }
   d.className='dock';
   if(cur===null){
     const done=s.items.filter(i=>i.counted!==null).length,all=done===s.items.length;
     d.innerHTML=`<div class="dockrow">
+      <button class="big grey" onclick="openSid=null;cur=null;render()">Lists</button>
       <button class="big scanb" onclick="startScan('find')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
           <path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/>
@@ -589,6 +715,8 @@ function renderTm(){
   const closed=tmPending();
   if(!closed.length){el.innerHTML='<div class="card"><div class="empty">Nothing waiting.<br>Finish a count list and it appears here.</div></div>';dock();return;}
   if(tmIdx>=closed.length)tmIdx=0;
+  if(!closed[tmIdx].items){loadItems(closed[tmIdx]).then(()=>renderTm());
+    el.innerHTML='<div class="card"><div class="empty">Loading…</div></div>';dock();return;}
   el.innerHTML=[closed[tmIdx]].map(s=>{
     const rows=s.items.filter(i=>i.counted!==null&&i.counted!==i.base)
                       .map(i=>({i,d:i.counted-i.base}));
@@ -615,7 +743,12 @@ function renderTm(){
 }
 function markEntered(id){
   const s=sess(id);if(!s)return;s.entered=now();
-  s.items.forEach(i=>{if(MEMORY[i.fp])MEMORY[i.fp].lastBase=i.counted;});
+  updateDoc(vdoc('sessions',s.id),{entered:serverTimestamp(),enteredBy:me.name}).catch(()=>{});
+  logEvent('entered in TM',{list:s.name});
+  (s.items||[]).forEach(i=>{if(MEMORY[i.fp]&&i.counted!==null){
+    MEMORY[i.fp].lastBase=i.counted;
+    setDoc(vdoc('memory',fpKey(i.fp)),{lastBase:i.counted},{merge:true}).catch(()=>{});
+  }});
   toast('Marked as entered');tmIdx=0;renderTm();renderHist();
 }
 function cp(t){navigator.clipboard&&navigator.clipboard.writeText(String(t));toast('Copied '+t);}
@@ -625,11 +758,12 @@ function renderHist(){
   const el=document.getElementById('histOut');
   if(!SESSIONS.length){el.innerHTML='<div class="card"><div class="empty">No lists yet.</div></div>';return;}
   el.innerHTML=`<div class="card">
-    ${SESSIONS.map(s=>{const ch=s.items.filter(i=>i.counted!==null&&i.counted!==i.base).length,
-                       dn=s.items.filter(i=>i.counted!==null).length;return `
+    ${SESSIONS.map(s=>{const ch=s.items?s.items.filter(i=>i.counted!==null&&i.counted!==i.base).length:(s.changed||0),
+                       dn=s.items?s.items.filter(i=>i.counted!==null).length:(s.done||0),
+                       tot=s.items?s.items.length:(s.total||0);return `
     <div class="row"><div class="txt">
       <div class="t1">${esc(s.name)}</div>
-      <div class="t2">LIST ${String(s.id).padStart(3,'0')} · ${dayOf(s.at)} · ${s.by} · ${dn}/${s.items.length} counted${ch?` · ${ch} changed`:''}</div>
+      <div class="t2">LIST ${String(s.id).padStart(3,'0')} · ${dayOf(s.at)} · ${s.by} · ${dn}/${tot} counted${ch?` · ${ch} changed`:''}</div>
     </div>
     <span class="state ${s.state==='open'?'open':'closed'}">${s.state==='open'?'counting':s.entered?'in TM':'to enter'}</span>
     </div>`;}).join('')}</div>`;
@@ -645,24 +779,34 @@ document.getElementById('camIn').onchange=function(){
   fr.onload=e=>{
     const img=new Image();
     img.onload=()=>{
-      const max=1000,sc=Math.min(1,max/Math.max(img.width,img.height));
+      const max=760,sc=Math.min(1,max/Math.max(img.width,img.height));
       const c=document.createElement('canvas');
       c.width=Math.round(img.width*sc);c.height=Math.round(img.height*sc);
       c.getContext('2d').drawImage(img,0,0,c.width,c.height);
       const it=sess(openSid).items[cur];
-      it.photo=c.toDataURL('image/jpeg',0.7);
+      it.photo=c.toDataURL('image/jpeg',0.6);
       it.photoBy=me.name;it.photoAt=now();
-      toast('Photo added');renderItem();
+      renderItem();
+      setDoc(vdoc('photos',sess(openSid).id+'_'+fpKey(it.fp)),
+        {data:it.photo,by:me.name,at:serverTimestamp(),item:it.n})
+        .then(()=>{toast('Photo saved');logEvent('added photo',{item:it.n});})
+        .catch(e=>toast('Photo too big to save'));
     };
     img.src=e.target.result;
   };
   fr.readAsDataURL(f);
 };
-function dropPhoto(){const it=sess(openSid).items[cur];delete it.photo;renderItem();}
-function dropCode(){const it=sess(openSid).items[cur];delete it.code;delete it.sym;CODES=CODES.filter(c=>c.fp!==it.fp);renderItem();}
+function dropPhoto(){const it=sess(openSid).items[cur];delete it.photo;
+  deleteDoc(vdoc('photos',sess(openSid).id+'_'+fpKey(it.fp))).catch(()=>{});
+  logEvent('removed photo',{item:it.n});renderItem();}
+function dropCode(){const it=sess(openSid).items[cur],c=it.code;
+  delete it.code;delete it.sym;CODES=CODES.filter(x=>x.fp!==it.fp);
+  if(c)deleteDoc(vdoc('codes',c)).catch(()=>{});
+  updateDoc(vdoc('sessions',sess(openSid).id,'items',it.key||fpKey(it.fp)),{code:null,sym:null}).catch(()=>{});
+  logEvent('removed barcode',{item:it.n,code:c});renderItem();}
 
 /* ---------- barcode scanning ---------- */
-let CODES=[], scanStream=null, scanMode='find', scanTimer=null;
+let scanStream=null, scanMode='find', scanTimer=null;
 function scanSupported(){return 'BarcodeDetector' in window && navigator.mediaDevices && navigator.mediaDevices.getUserMedia;}
 async function startScan(mode){
   scanMode=mode||'find';
@@ -679,6 +823,7 @@ async function startScan(mode){
   v.style.display='block';
   document.getElementById('svMsg').textContent=scanMode==='link'
     ? 'Point at the barcode to link it to this item'
+    : scanMode==='any' ? 'Point at a barcode to find it in any open list'
     : 'Point at a barcode to find the item';
   document.getElementById('scanView').classList.add('on');
   try{
@@ -693,6 +838,53 @@ async function startScan(mode){
     }catch(e){}
   },400);
 }
+const GS1=[[0,19,'USA/Canada'],[20,29,'in-store'],[30,39,'USA drugs'],[40,49,'in-store'],[50,59,'coupon'],
+ [60,139,'USA/Canada'],[200,299,'in-store'],[300,379,'France'],[380,380,'Bulgaria'],[383,383,'Slovenia'],
+ [385,385,'Croatia'],[387,387,'Bosnia'],[389,389,'Montenegro'],[400,440,'Germany'],[450,459,'Japan'],
+ [460,469,'Russia'],[471,471,'Taiwan'],[474,474,'Estonia'],[475,475,'Latvia'],[477,477,'Lithuania'],
+ [479,479,'Sri Lanka'],[480,480,'Philippines'],[481,481,'Belarus'],[482,482,'Ukraine'],[484,484,'Moldova'],
+ [485,485,'Armenia'],[486,486,'Georgia'],[487,487,'Kazakhstan'],[489,489,'Hong Kong'],[490,499,'Japan'],
+ [500,509,'UK'],[520,521,'Greece'],[528,528,'Lebanon'],[529,529,'Cyprus'],[531,531,'N. Macedonia'],
+ [535,535,'Malta'],[539,539,'Ireland'],[540,549,'Belgium/Lux'],[560,560,'Portugal'],[569,569,'Iceland'],
+ [570,579,'Denmark'],[590,590,'Poland'],[594,594,'Romania'],[599,599,'Hungary'],[600,601,'South Africa'],
+ [608,608,'Bahrain'],[611,611,'Morocco'],[613,613,'Algeria'],[616,616,'Kenya'],[619,619,'Tunisia'],
+ [621,621,'Syria'],[622,622,'Egypt'],[625,625,'Jordan'],[626,626,'Iran'],[627,627,'Kuwait'],
+ [628,628,'Saudi Arabia'],[629,629,'UAE'],[630,630,'Qatar'],[640,649,'Finland'],[690,699,'China'],
+ [700,709,'Norway'],[729,729,'Israel'],[730,739,'Sweden'],[740,745,'Central America'],[746,746,'Dominican Rep'],
+ [750,750,'Mexico'],[754,755,'Canada'],[759,759,'Venezuela'],[760,769,'Switzerland'],[770,771,'Colombia'],
+ [773,773,'Uruguay'],[775,775,'Peru'],[777,777,'Bolivia'],[778,779,'Argentina'],[780,780,'Chile'],
+ [784,784,'Paraguay'],[786,786,'Ecuador'],[789,790,'Brazil'],[800,839,'Italy'],[840,849,'Spain'],
+ [850,850,'Cuba'],[858,858,'Slovakia'],[859,859,'Czechia'],[860,860,'Serbia'],[865,865,'Mongolia'],
+ [867,867,'North Korea'],[868,869,'Turkey'],[870,879,'Netherlands'],[880,880,'South Korea'],
+ [884,884,'Cambodia'],[885,885,'Thailand'],[888,888,'Singapore'],[890,890,'India'],[893,893,'Vietnam'],
+ [896,896,'Pakistan'],[899,899,'Indonesia'],[900,919,'Austria'],[930,939,'Australia'],[940,949,'New Zealand'],
+ [955,955,'Malaysia'],[958,958,'Macau'],[977,977,'ISSN periodical'],[978,979,'ISBN book'],[980,980,'refund receipt'],
+ [981,984,'coupon'],[990,999,'coupon']];
+function gs1(pre){const n=parseInt(pre,10);for(const r of GS1)if(n>=r[0]&&n<=r[1])return r[2];return '';}
+function codeInfo(code,fmt){
+  const f=(fmt||'').toLowerCase();
+  const pretty={ean_13:'EAN-13',ean_8:'EAN-8',upc_a:'UPC-A',upc_e:'UPC-E',code_128:'Code 128',
+                code_39:'Code 39',qr_code:'QR',data_matrix:'DataMatrix',itf:'ITF'}[f]||(fmt||'code');
+  const out={label:pretty,ok:null,where:''};
+  if(/^\d+$/.test(code)&&(f==='ean_13'||f==='ean_8'||f==='upc_a')){
+    const d=code.split('').map(Number),chk=d.pop();
+    let sum=0;
+    d.reverse().forEach((n,i)=>sum+=n*(i%2===0?3:1));
+    out.ok=((10-(sum%10))%10)===chk;
+    if(f!=='ean_8'){
+      out.where=gs1((f==='upc_a'?'0'+code:code).slice(0,3));
+    }
+  }
+  return out;
+}
+function codeKind(code,fmt){
+  const ci=codeInfo(code,fmt),f=(fmt||'').toLowerCase();
+  if(ci.ok===false)return {cls:'bad',lab:'Check digit fails — misread'};
+  if(ci.ok===true)return {cls:'good',lab:'Product code'+(ci.where?' · '+ci.where:'')+' — same on every delivery'};
+  if(f.includes('qr')||f.includes('data_matrix'))
+    return {cls:'warn',lab:'Check it is marked on the part, not the packaging'};
+  return {cls:'warn',lab:'Supplier code — may change with the next delivery'};
+}
 function linkCode(code,fmt,moved){
   const it=sess(openSid).items[cur];
   /* a code belongs to exactly one item — clear it everywhere else */
@@ -702,7 +894,11 @@ function linkCode(code,fmt,moved){
   CODES=CODES.filter(c=>c.code!==code&&c.fp!==it.fp);
   it.code=code;it.sym=fmt;
   CODES.push({code,fp:it.fp,n:it.n});
-  toast(moved?'Barcode moved to this item':'Barcode linked');
+  setDoc(vdoc('codes',code),{fp:it.fp,n:it.n,sym:fmt,by:me.name,at:serverTimestamp()}).catch(()=>{});
+  updateDoc(vdoc('sessions',sess(openSid).id,'items',it.key||fpKey(it.fp)),{code,sym:fmt}).catch(()=>{});
+  logEvent(moved?'moved barcode':'linked barcode',{item:it.n,code});
+  const kk=codeKind(code,fmt);
+  toast(moved?'Barcode moved to this item':kk.cls==='good'?'Product code linked':'Linked — check the note');
   renderItem();
 }
 function stopScan(){
@@ -718,6 +914,9 @@ function onCode(code,fmt){
   if(scanMode==='link'&&cur!==null){
     const it=s.items[cur];
     if(it.code===code){toast('Already linked to this item');return;}
+    const k=codeKind(code,fmt);
+    if(k.cls==='bad'){ask('That did not read cleanly',
+      'The check digit does not match, so the scan was misread. Hold steadier and try again.','OK',()=>{});return;}
     const owner=CODES.find(c=>c.code===code&&c.fp!==it.fp);
     if(owner){
       ask('Barcode already in use',
@@ -727,13 +926,21 @@ function onCode(code,fmt){
     }
     linkCode(code,fmt,false);return;
   }
-  let n=s.items.findIndex(i=>i.code===code);
-  if(n<0){
-    const known=CODES.find(c=>c.code===code);
-    if(known)n=s.items.findIndex(i=>i.fp===known.fp);
+  const known=CODES.find(c=>c.code===code);
+  const hunt=ss=>{
+    let n=ss.items.findIndex(i=>i.code===code);
+    if(n<0&&known)n=ss.items.findIndex(i=>i.fp===known.fp);
+    return n;
+  };
+  if(s&&s.state==='open'){
+    const n=hunt(s);
+    if(n>=0){pick(n);return;}
   }
-  if(n<0){toast('Not on this list');return;}
-  pick(n);
+  for(const ss of SESSIONS.filter(x=>x.state==='open'&&x!==s)){
+    const n=hunt(ss);
+    if(n>=0){openSid=ss.id;render();pick(n);toast('Found in “'+ss.name+'”');return;}
+  }
+  toast(known?'On no open list — “'+known.n+'”':'Barcode not linked to anything yet');
 }
 
 /* ---------- printing ---------- */
@@ -816,19 +1023,275 @@ function askNo(){document.getElementById('ask').classList.remove('on');askFn=nul
 document.getElementById('askY').onclick=()=>{const f=askFn;askNo();if(f)f();};
 function toast(t){const e=document.getElementById('toast');e.textContent=t;e.classList.add('on');
   clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('on'),1800);}
-function signOut(){me=null;document.getElementById('gate').style.display='flex';}
-document.getElementById('users').innerHTML=USERS.map(u=>`
-  <button class="u" onclick="signIn('${u.id}')"><span class="av">${u.init}</span>
-  <span><span class="un">${u.name}</span><br><span class="ur">${u.role==='admin'?'Admin — can paste new lists':'Counts only'}</span></span></button>`).join('');
-function signIn(id){
-  me=USERS.find(u=>u.id===id);
-  document.getElementById('whoName').textContent=me.name;
-  const c=document.getElementById('whoRole');c.textContent=me.role;c.className='chip '+(me.role==='admin'?'admin':'');
-  document.getElementById('gate').style.display='none';
+
+/* ==================== auth ==================== */
+let mode='in';
+const $=id=>document.getElementById(id);
+const gErr=t=>{$('gErr').textContent=t||'';};
+
+function paintGate(){
+  const up=mode==='up';
+  $('gName').style.display=up?'block':'none';
+  $('gTitle').textContent=up?'Create an account':'Control count';
+  $('gSub').textContent=up?'An admin approves the account before it can be used.'
+                          :'Sign in — every count is recorded against your name.';
+  $('gGo').textContent=up?'Create account':'Sign in';
+  $('gSwap').textContent=up?'I already have an account':'Create an account';
+  $('gPass').autocomplete=up?'new-password':'current-password';
+  gErr('');
+}
+$('gSwap').onclick=()=>{mode=mode==='up'?'in':'up';paintGate();};
+
+const AUTHMSG={
+ 'auth/invalid-email':'That email address is not valid.',
+ 'auth/missing-password':'Enter your password.',
+ 'auth/weak-password':'Password must be at least 6 characters.',
+ 'auth/email-already-in-use':'That email already has an account. Sign in instead.',
+ 'auth/invalid-credential':'Email or password is wrong.',
+ 'auth/wrong-password':'Email or password is wrong.',
+ 'auth/user-not-found':'No account with that email.',
+ 'auth/too-many-requests':'Too many attempts. Wait a few minutes.',
+ 'auth/network-request-failed':'No connection. Check the wifi and try again.'
+};
+const authErr=e=>AUTHMSG[e.code]||e.message||'Something went wrong.';
+
+$('gGo').onclick=async()=>{
+  const email=$('gEmail').value.trim(), pass=$('gPass').value, name=$('gName').value.trim();
+  gErr('');$('gGo').disabled=true;
+  try{
+    if(mode==='up'){
+      if(name.length<2){gErr('Enter your full name.');$('gGo').disabled=false;return;}
+      const cred=await createUserWithEmailAndPassword(auth,email,pass);
+      await updateProfile(cred.user,{displayName:name});
+      await setDoc(doc(db,'users',cred.user.uid),
+        {name,email,role:'pending',createdAt:serverTimestamp()});
+      await sendEmailVerification(cred.user);
+    }else{
+      await signInWithEmailAndPassword(auth,email,pass);
+    }
+  }catch(e){gErr(authErr(e));}
+  $('gGo').disabled=false;
+};
+$('gPass').onkeydown=e=>{if(e.key==='Enter')$('gGo').click();};
+$('gReset').onclick=async()=>{
+  const email=$('gEmail').value.trim();
+  if(!email){gErr('Type your email first, then press this.');return;}
+  try{await sendPasswordResetEmail(auth,email);gErr('');toast('Reset email sent');}
+  catch(e){gErr(authErr(e));}
+};
+$('gOut').onclick=()=>fbSignOut(auth);
+window.signOut=()=>fbSignOut(auth);
+
+function showGate(state,msg){
+  $('gate').style.display='flex';
+  $('gForm').style.display=state==='form'?'block':'none';
+  $('gWho').style.display=state==='who'?'block':'none';
+  $('gShip').style.display=state==='ship'?'block':'none';
+  $('gWait').style.display=state==='wait'?'block':'none';
+  $('gNote').style.display=state==='form'?'block':'none';
+  if(state==='form'){paintGate();return;}
+  if(state==='wait'){$('gTitle').textContent='Almost there';$('gSub').textContent='';$('gWaitMsg').innerHTML=msg;return;}
+  if(state==='ship'){
+    $('gTitle').textContent='Which vessel?';
+    $('gSub').textContent='Each ship keeps its own lists. You can change this later.';
+    $('shipList').innerHTML=VESSELS.map(v=>`<button class="u ship" data-v="${v}">
+      <span class="av">${SHORT[v]}</span><span class="un">${v}</span></button>`).join('');
+    $('shipList').querySelectorAll('button').forEach(b=>b.onclick=()=>pickVessel(b.dataset.v));
+    return;
+  }
+  $('gTitle').textContent='Who is counting?';
+  $('gSub').textContent='This name goes on every count you record.';
+  $('gWhoPos').innerHTML=msg;
+}
+
+onAuthStateChanged(auth,async u=>{
+  if(!u){me=null;SESSIONS=[];MEMORY={};CODES=[];USERS=[];showGate('form');return;}
+  if(!u.emailVerified){
+    showGate('wait','Check your email and click the link to confirm the address, then sign in again.<br><br>'+
+      'Sent to <b>'+esc(u.email)+'</b>.');
+    return;
+  }
+  let snap;
+  try{snap=await getDoc(doc(db,'users',u.uid));}catch(e){showGate('wait','Cannot reach the database. Check the connection.');return;}
+  if(!snap.exists()){
+    await setDoc(doc(db,'users',u.uid),{name:u.displayName||u.email,email:u.email,role:'pending',createdAt:serverTimestamp()});
+    showGate('wait','Account created. An admin must approve it before you can count.');return;
+  }
+  const d=snap.data();
+  if(d.role==='pending'){showGate('wait','Waiting for an admin to approve this account.');return;}
+  if(d.role==='blocked'){showGate('wait','This account has been blocked.');return;}
+  const pos=(d.kind==='position')?(d.position||'Shared account'):null;
+  if(pos){
+    let last='';try{last=localStorage.getItem('counter:'+u.uid)||'';}catch(e){}
+    $('gWhoName').value=last||d.name||'';
+    showGate('who','<b>'+esc(pos)+'</b><br>'+esc(u.email)+' is shared, so type the name of whoever is counting today.');
+    pendingUser={u,d,pos};
+    setTimeout(()=>$('gWhoName').focus(),80);
+    return;
+  }
+  await enterApp(u,d,d.name||u.email,null);
+});
+
+let pendingUser=null;
+$('gWhoGo').onclick=async()=>{
+  const nm=$('gWhoName').value.trim();
+  if(nm.length<2){$('gWhoName').focus();return;}
+  const {u,d,pos}=pendingUser;
+  try{localStorage.setItem('counter:'+u.uid,nm);}catch(e){}
+  await enterApp(u,d,nm,pos);
+};
+$('gWhoName').onkeydown=e=>{if(e.key==='Enter')$('gWhoGo').click();};
+$('gWhoOut').onclick=()=>fbSignOut(auth);
+$('gShipOut').onclick=()=>fbSignOut(auth);
+$('shipBtn').onclick=()=>{if(me)showGate('ship');};
+
+let pendingEnter=null;
+async function enterApp(u,d,name,pos){
+  let v='';
+  try{v=localStorage.getItem('vessel:'+u.uid)||'';}catch(e){}
+  if(!v||VESSELS.indexOf(v)<0)v=d.vessel&&VESSELS.indexOf(d.vessel)>=0?d.vessel:'';
+  if(!v){pendingEnter={u,d,name,pos};showGate('ship');return;}
+  await enterVessel(u,d,name,pos,v);
+}
+async function pickVessel(v){
+  try{localStorage.setItem('vessel:'+(pendingEnter?pendingEnter.u.uid:me.uid),v);}catch(e){}
+  if(pendingEnter){
+    const {u,d,name,pos}=pendingEnter; pendingEnter=null;
+    await enterVessel(u,d,name,pos,v);
+  }else{
+    me.vessel=v;
+    updateDoc(doc(db,'users',me.uid),{vessel:v}).catch(()=>{});
+    $('vName').textContent=SHORT[v]||v;
+    $('gate').style.display='none';
+    SESSIONS=[];MEMORY={};CODES=[];openSid=null;cur=null;tmIdx=0;
+    logEvent('switched vessel',{});
+    await loadAll();
+    toast('Now on '+v);
+  }
+}
+async function enterVessel(u,d,name,pos,v){
+  me={uid:u.uid,name,email:u.email,role:d.role,position:pos,vessel:v};
+  if(d.vessel!==v)updateDoc(doc(db,'users',u.uid),{vessel:v}).catch(()=>{});
+  $('vName').textContent=SHORT[v]||v;
+  $('whoName').textContent=name.split(' ')[0];
+  const c=$('whoRole');c.textContent=me.role;c.className='chip '+(me.role==='admin'?'admin':'');
   document.querySelectorAll('nav.tabs button[data-desk]').forEach(b=>{
     b.style.display=me.role==='admin'?'block':'none';});
+  $('gate').style.display='none';
+  await loadAll();
+  logEvent('signed in',{});
+}
+
+/* ==================== firestore ==================== */
+const tsOf=v=>v&&v.toDate?v.toDate():(v?new Date(v):new Date());
+
+async function loadAll(){
+  booting=true;
+  try{
+    const ss=await getDocs(query(vcol('sessions'),orderBy('at','desc'),limit(60)));
+    SESSIONS=ss.docs.map(d=>({id:d.id,...d.data(),at:tsOf(d.data().at),items:null}));
+    const ms=await getDocs(vcol('memory'));
+    MEMORY={};ms.docs.forEach(d=>MEMORY[d.id]={...d.data(),lastAt:tsOf(d.data().lastAt)});
+    const cs=await getDocs(vcol('codes'));
+    CODES=cs.docs.map(d=>({code:d.id,...d.data()}));
+    if(me.role==='admin')await loadAdmin();
+  }catch(e){toast('Could not load: '+e.code);}
+  booting=false;
+  seq=Date.now();
   render();renderTm();renderHist();
 }
+async function loadAdmin(){
+  const us=await getDocs(collection(db,'users'));
+  USERS=us.docs.map(d=>({uid:d.id,...d.data()}));
+  const ev=await getDocs(query(collection(db,'events'),orderBy('at','desc'),limit(80)));
+  EVENTS=ev.docs.map(d=>({id:d.id,...d.data(),at:tsOf(d.data().at)}));
+}
+async function loadItems(s){
+  if(s.items)return s.items;
+  const q=await getDocs(vcol('sessions',s.id,'items'));
+  s.items=q.docs.map(d=>({key:d.id,...d.data(),at:d.data().at?tsOf(d.data().at):null}))
+                .sort((a,b)=>(a.ord||0)-(b.ord||0));
+  return s.items;
+}
+async function logEvent(what,extra){
+  if(!me)return;
+  try{await addDoc(collection(db,'events'),
+    {who:me.name,position:me.position||null,uid:me.uid,vessel:me.vessel,
+     what,at:serverTimestamp(),...extra});}catch(e){}
+}
+const fpKey=fp=>fp.replace(/[\/\\#?\[\]]/g,'_').slice(0,180);
+
+/* ==================== admin ==================== */
+window.setKind=async uid=>{
+  const u=USERS.find(x=>x.uid===uid); if(!u)return;
+  if(u.kind==='position'){
+    await updateDoc(doc(db,'users',uid),{kind:'person',position:null});
+    u.kind='person';u.position=null;logEvent('set account type',{target:uid,kind:'person'});
+  }else{
+    const t=prompt('Which position uses this mailbox?\ne.g. Chief Electrician, Factory Manager',u.position||'');
+    if(!t)return;
+    await updateDoc(doc(db,'users',uid),{kind:'position',position:t.trim()});
+    u.kind='position';u.position=t.trim();logEvent('set account type',{target:uid,kind:'position',position:t.trim()});
+  }
+  renderAdmin();
+};
+window.setHolder=async uid=>{
+  const u=USERS.find(x=>x.uid===uid); if(!u)return;
+  const n=prompt('Who holds this position now?',u.name||'');
+  if(!n||n.trim().length<2)return;
+  await updateDoc(doc(db,'users',uid),{name:n.trim()});
+  u.name=n.trim();logEvent('changed holder',{target:uid,name:n.trim()});
+  toast('Holder updated');renderAdmin();
+};
+window.setRole=async(uid,role)=>{
+  try{
+    await updateDoc(doc(db,'users',uid),{role});
+    const u=USERS.find(x=>x.uid===uid); if(u)u.role=role;
+    logEvent('set role',{target:uid,role});
+    toast('Role set to '+role);renderAdmin();
+  }catch(e){toast('Failed: '+e.code);}
+};
+function renderAdmin(){
+  const el=$('admOut'); if(!el)return;
+  if(!me||me.role!=='admin'){el.innerHTML='';return;}
+  const pend=USERS.filter(u=>u.role==='pending');
+  el.innerHTML=`
+  <div class="card">
+    <div class="grp">Waiting for approval — ${pend.length}</div>
+    ${pend.length?pend.map(u=>`<div class="entry">
+      <div class="etop"><div class="txt"><div class="t1">${esc(u.name)}</div>
+        <div class="t2">${esc(u.email)}</div></div></div>
+      <div class="ebtn">
+        <button class="mini yes" onclick="setRole('${u.uid}','user')">Allow counting</button>
+        <button class="mini yes" onclick="setRole('${u.uid}','admin')">Make admin</button>
+        <button class="mini no" onclick="setRole('${u.uid}','blocked')">Block</button>
+      </div></div>`).join(''):'<div class="empty">Nobody waiting.</div>'}
+  </div>
+  <div class="card">
+    <div class="grp">Crew — ${USERS.filter(u=>u.role!=='pending').length}</div>
+    ${USERS.filter(u=>u.role!=='pending').map(u=>`<div class="entry">
+      <div class="etop"><div class="txt">
+        <div class="t1">${u.kind==='position'?esc(u.position||'Position'):esc(u.name)}</div>
+        <div class="t2">${esc(u.email)}</div>
+        <div class="t2">${u.kind==='position'?'shared · held by '+esc(u.name):'personal account'}</div>
+      </div><span class="state ${u.role==='blocked'?'open':'closed'}">${u.role}</span></div>
+      <div class="ebtn">
+        <button class="mini" onclick="setKind('${u.uid}')">${u.kind==='position'?'Make personal':'Make shared'}</button>
+        ${u.kind==='position'?`<button class="mini" onclick="setHolder('${u.uid}')">Change holder</button>`:''}
+        ${u.uid!==me.uid?`<button class="mini ${u.role==='blocked'?'yes':'no'}" onclick="setRole('${u.uid}','${u.role==='blocked'?'user':'blocked'}')">${u.role==='blocked'?'Unblock':'Block'}</button>`:''}
+      </div></div>`).join('')}
+  </div>
+  <div class="card">
+    <div class="grp">Activity — last ${EVENTS.length}</div>
+    <div class="row"><div class="txt t2">Append only. Entries cannot be edited or deleted, by anyone.</div></div>
+    ${EVENTS.length?EVENTS.map(e=>`<div class="row">
+      <div class="txt"><div class="t1">${esc(e.who)}${e.position?' <span style="color:var(--faint);font-weight:500">('+esc(e.position)+')</span>':''} — ${esc(e.what)}</div>
+      <div class="t2">${e.list?esc(e.list)+' · ':''}${e.item?esc(e.item)+' · ':''}${hhmm(e.at)}</div></div>
+    </div>`).join(''):'<div class="empty">Nothing yet.</div>'}
+  </div>`;
+}
+/* inline handlers need these on window — module scope is not global */
+Object.assign(window,{enterApp,enterVessel,pickVessel,showGate,paintGate,askNo,bump,clearImport,cp,demo,dropCode,dropPhoto,finish,markEntered,openList,parsePaste,pick,printBlank,printEntry,save,setCount,setRole,signOut,startScan,startSession,stopScan,tab,takePhoto,render,renderTm,renderHist,renderAdmin,toast});
 </script>
 </body>
 </html>
